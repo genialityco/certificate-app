@@ -1,0 +1,5 @@
+const CANVAS_CONTROLS_OVERLAY = 'canvas-controls-overlay'
+const CANVAS_PREVIEW_UNIQUE_ID = 'canvas-preview'
+const APP_FIXED_MAIN_UNIQUE_ID = 'fixed-main'
+
+export { CANVAS_CONTROLS_OVERLAY, CANVAS_PREVIEW_UNIQUE_ID, APP_FIXED_MAIN_UNIQUE_ID }
