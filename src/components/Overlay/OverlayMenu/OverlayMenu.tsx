@@ -1,7 +1,7 @@
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 
 import { ActionIcon, Menu, Tooltip } from '@mantine/core'
-import { IconEdit, IconMenu2, IconUserCog } from '@tabler/icons-react'
+import { IconAppWindow, IconEdit, IconLayoutDashboard, IconMenu2 } from '@tabler/icons-react'
 
 import useModalContext from '@/context/useModalContext'
 import useActiveObjectId from '@/store/useActiveObjectId'
@@ -12,10 +12,19 @@ export default function OverlayMenu() {
   const { openMenuModal } = useModalContext()
 
   const setActiveObjectId = useActiveObjectId((state) => state.setActiveObjectId)
+  const { eventId } = useParams()
+  const location = useLocation()
+
+  const queryParams = new URLSearchParams(location.search)
+  const certificateId = queryParams.get('certificateId')
   const navigate = useNavigate()
 
-  const handleManageUsersClick = () => {
-    navigate('/dashboard')
+  const handleGoToLanding = () => {
+    navigate(`/event/${eventId}/certificate/${certificateId}`)
+  }
+
+  const handleGoToDashboard = () => {
+    navigate(`/dashboard`)
   }
 
   return (
@@ -50,8 +59,13 @@ export default function OverlayMenu() {
           </Menu>
 
           <Menu.Divider />
-          <Menu.Item leftSection={<IconUserCog />} onClick={handleManageUsersClick}>
-            Gestionar usuarios
+          <Menu.Item leftSection={<IconAppWindow />} onClick={handleGoToLanding}>
+            Ir a la landing
+          </Menu.Item>
+
+          <Menu.Divider />
+          <Menu.Item leftSection={<IconLayoutDashboard />} onClick={handleGoToDashboard}>
+            Ir a la dashboard
           </Menu.Item>
         </Menu.Dropdown>
       </Menu>
