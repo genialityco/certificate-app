@@ -1,7 +1,17 @@
 import { FC, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 
-import { ActionIcon, Box, Card, Container, Group, Input, Text } from '@mantine/core'
+import {
+  ActionIcon,
+  Box,
+  Card,
+  Container,
+  Group,
+  Input,
+  Text,
+  useMantineTheme,
+} from '@mantine/core'
+import { useMediaQuery } from '@mantine/hooks'
 import { IconSearch } from '@tabler/icons-react'
 
 import { ApiServices } from '@/services'
@@ -14,6 +24,9 @@ const ConsultCertificate: FC = (): JSX.Element => {
   const navigate = useNavigate()
   const { eventId, certificateId } = params
   const apiServices = useMemo(() => new ApiServices(), [])
+  const theme = useMantineTheme()
+
+  const isMobile = useMediaQuery(`(max-width: ${theme.breakpoints.sm})`)
 
   useEffect(() => {
     if (eventId) {
@@ -52,10 +65,20 @@ const ConsultCertificate: FC = (): JSX.Element => {
         justifyContent: 'center',
         alignItems: 'center',
         background: `url(${eventData.styles.eventImage}) no-repeat center center`,
-        backgroundSize: 'contain',
+        backgroundSize: 'cover',
+        backgroundPosition: 'top',
       }}
+      fluid
     >
-      <Box px="xl" py="lg">
+      <Box
+        px="xl"
+        py="lg"
+        style={{
+          width: isMobile ? '100%' : '80%',
+          backgroundColor: 'rgba(0, 0, 0, 0.7)',
+          borderRadius: '10px',
+        }}
+      >
         <Group justify="center">
           <Text size="xl" c="white" mt="lg">
             ¡Bienvenido! Consulta y descarga tu certificado del evento: {eventData.name}

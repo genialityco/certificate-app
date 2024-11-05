@@ -218,6 +218,7 @@ const GenerateCertificate: FC = (): JSX.Element => {
           maxWidth: '80%',
           margin: '0 auto',
           paddingBottom: '15px',
+          border: '1px solid rgb(55 55 55 / 20%)',
         }}
       >
         {!loading && <CanvasPreview />}

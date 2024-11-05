@@ -11,6 +11,7 @@ const Home: FC = (): JSX.Element => {
       fluid
       style={{
         height: '100vh',
+        width: '100vw',
         color: '#ddd',
         backgroundColor: '#242424',
       }}
