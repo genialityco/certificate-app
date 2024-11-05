@@ -93,7 +93,6 @@ const ConsultCertificate: FC = (): JSX.Element => {
             <Input
               placeholder="Número de documento"
               radius="md"
-              type="number"
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               style={{ width: '80%' }}
