@@ -1,5 +1,6 @@
 declare global {
   interface MyEvent {
+    data(data: any): unknown
     _id: string
     name: string
     organization: string | { $oid: string }

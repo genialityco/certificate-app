@@ -8,6 +8,11 @@ import { APP_FIXED_MAIN_UNIQUE_ID, CANVAS_CONTROLS_OVERLAY } from '@/config/glob
 import { type ActionModeOption, type CanvasObject } from '@/config/types'
 import useCanvasContext from '@/context/useCanvasContext'
 import { ApiServices } from '@/services'
+import {
+  createCertificate,
+  fetchCertificateById,
+  updateCertificate,
+} from '@/services/api/certificateService'
 import useActionMode from '@/store/useActionMode'
 import useActiveObjectId from '@/store/useActiveObjectId'
 import useCanvasObjects from '@/store/useCanvasObjects'
@@ -85,12 +90,10 @@ export default function Canvas({ eventId }: { eventId: string }) {
   useEffect(() => {
     const getCertElements = async () => {
       try {
-        const response = await apiServices.fetchFilteredGlobal('Certificate', {
-          _id: certificateId,
-        })
+        const response = await fetchCertificateById(certificateId)
 
-        if (response && response[0]) {
-          const certificateData = response[0] as { elements: CanvasObject[] }
+        if (response && response.data) {
+          const certificateData = response.data as { elements: CanvasObject[] }
 
           // Filtrar primero las imágenes de fondo
           const imageElements = certificateData.elements.filter(
@@ -195,6 +198,7 @@ export default function Canvas({ eventId }: { eventId: string }) {
         throw new Error(String(error))
       }
     }
+
     // Función para cargar una imagen
     const loadImage = async (element: CanvasObject, imageUrl: string) => {
       await commonPushImageObject(element, imageUrl)
@@ -226,6 +230,7 @@ export default function Canvas({ eventId }: { eventId: string }) {
       // });
       pushImageObject(element, url, imageElement)
     }
+
     if (certificateId) {
       getCertElements()
     }
@@ -663,9 +668,13 @@ export default function Canvas({ eventId }: { eventId: string }) {
 
     try {
       if (certificateId) {
-        await apiServices.updateCertificate(certificateId, elementsToSave)
+        await updateCertificate(certificateId, elementsToSave)
       } else {
-        await apiServices.createCertificate(eventId, elementsToSave)
+        const dataCertificate = {
+          eventId: eventId,
+          elements: elementsToSave,
+        }
+        await createCertificate(dataCertificate)
       }
     } catch (error) {
       throw new Error(String(error))

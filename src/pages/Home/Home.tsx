@@ -19,7 +19,7 @@ const Home: FC = (): JSX.Element => {
       <Flex display="flex" direction="column" justify="center" align="center" h="100%" gap="lg">
         <Title order={1}>Gestor de certificados</Title>
         <Box>
-          <Anchor onClick={() => navigate('/dashboard')}>Ir a la dashboard</Anchor>
+          <Anchor onClick={() => navigate('/dashboard/organizations')}>Ir a la dashboard</Anchor>
         </Box>
       </Flex>
     </Container>

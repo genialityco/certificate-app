@@ -6,7 +6,13 @@ import OverlayZoom from '@/components/Overlay/OverlayZoom'
 
 import OverlayMenu from './OverlayMenu'
 
-export default function Overlay({ eventId }: { eventId: string }) {
+export default function Overlay({
+  eventId,
+  organizationId,
+}: {
+  eventId: string | null
+  organizationId: string | null
+}) {
   const fixedDivStyle: React.CSSProperties = {
     pointerEvents: 'none',
     position: 'fixed',
@@ -53,7 +59,7 @@ export default function Overlay({ eventId }: { eventId: string }) {
         <OverlayZoom />
       </div>
       <div style={leftDivStyle}>
-        <OverlaySidebar eventId={eventId} />
+        <OverlaySidebar eventId={eventId} organizationId={organizationId} />
       </div>
     </div>
   )

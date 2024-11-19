@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react'
 import { Paper } from '@mantine/core'
 
 import { ApiServices } from '@/services'
+import { fetchOrganizationById } from '@/services/api/organizationService'
 import useActionMode from '@/store/useActionMode'
 import useActiveObjectId from '@/store/useActiveObjectId'
 import useCanvasObjects from '@/store/useCanvasObjects'
@@ -25,11 +26,17 @@ import StrokeWidthControl from './controls/StrokeWidthControl'
 import TextControl from './controls/TextControl'
 
 interface Property {
-  name: string
+  fieldName: string
   label: string
 }
 
-export default function OverlaySidebar({ eventId }: { eventId: string }) {
+export default function OverlaySidebar({
+  eventId,
+  organizationId,
+}: {
+  eventId: string | null
+  organizationId: string | null
+}) {
   const [userProperties, setUserProperties] = useState<Property[]>([])
   const [selectedProperty, setSelectedProperty] = useState('')
   const activeObjectId = useActiveObjectId((state) => state.activeObjectId)
@@ -44,14 +51,11 @@ export default function OverlaySidebar({ eventId }: { eventId: string }) {
 
   const updateCanvasObject = useCanvasObjects((state) => state.updateCanvasObject)
 
-  const apiServices = new ApiServices()
-
   useEffect(() => {
     const fetchEventProperties = async () => {
-      const filters = { _id: eventId }
-      const data = await apiServices.fetchFilteredGlobal('Event', filters)
-      if (data[0] && data[0].userProperties) {
-        setUserProperties(data[0].userProperties as Property[])
+      const response = await fetchOrganizationById(organizationId)
+      if (response && response.data.propertiesDefinition) {
+        setUserProperties(response.data.propertiesDefinition as Property[])
       }
     }
 
@@ -132,7 +136,7 @@ export default function OverlaySidebar({ eventId }: { eventId: string }) {
                 Seleccione una propiedad
               </option>
               {userProperties.map((property, index) => (
-                <option key={index} value={property.name}>
+                <option key={index} value={property.fieldName}>
                   {property.label}
                 </option>
               ))}

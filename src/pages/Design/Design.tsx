@@ -10,6 +10,9 @@ import useCanvasObjects from '@/store/useCanvasObjects'
 
 const Design: React.FC = () => {
   const { eventId } = useParams()
+
+  const queryParams = new URLSearchParams(location.search)
+  const organizationId = queryParams.get('organizationId')
   const { setColorScheme } = useMantineColorScheme()
 
   const resetCanvasObjects = useCanvasObjects((state) => state.resetCanvasObjects)
@@ -32,7 +35,10 @@ const Design: React.FC = () => {
 
   return (
     <>
-      <Overlay eventId={eventId ? String(eventId) : ''} />
+      <Overlay
+        eventId={eventId ? String(eventId) : null}
+        organizationId={organizationId ? organizationId : null}
+      />
       <Canvas eventId={eventId ? String(eventId) : ''} />
       <CanvasEventListeners />
     </>

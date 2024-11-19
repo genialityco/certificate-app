@@ -15,6 +15,9 @@ import { useMediaQuery } from '@mantine/hooks'
 import { IconSearch } from '@tabler/icons-react'
 
 import { ApiServices } from '@/services'
+import { searchAttendees } from '@/services/api/attendeeService'
+import { fetchEventById } from '@/services/api/eventService'
+import { searchMembers } from '@/services/api/memberService'
 import notification from '@/utils/notification'
 
 const ConsultCertificate: FC = (): JSX.Element => {
@@ -30,8 +33,8 @@ const ConsultCertificate: FC = (): JSX.Element => {
 
   useEffect(() => {
     if (eventId) {
-      apiServices.fetchEventById(eventId as string).then((data: MyEvent) => {
-        setEventData(data)
+      fetchEventById(eventId as string).then((data: MyEvent) => {
+        setEventData(data.data)
       })
     }
   }, [apiServices, eventId])
@@ -42,11 +45,15 @@ const ConsultCertificate: FC = (): JSX.Element => {
       return
     }
 
-    const filters = { 'properties.numeroDocumento': inputValue, event: eventId }
-    const data = await apiServices.fetchFilteredGlobal('Attendee', filters)
-    const user = data[0]
-    if (user) {
-      navigate(`/certificate/${certificateId}/${user._id}`)
+    const filtersMember = { 'properties.idNumber': inputValue }
+    const memberData = await searchMembers(filtersMember)
+    const filtersAttendee = {
+      memberId: memberData.data.items[0]._id,
+    }
+    const attendeeData = await searchAttendees(filtersAttendee)
+    const attendee = attendeeData.data.items[0]
+    if (attendee) {
+      navigate(`/certificate/${certificateId}/${attendee.userId._id}`)
     } else {
       notification.error({ message: 'No se encontró el usuario' })
     }

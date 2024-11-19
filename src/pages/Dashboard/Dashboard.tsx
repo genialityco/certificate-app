@@ -1,5 +1,5 @@
 import { FC, useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 
 import {
   ActionIcon,
@@ -19,26 +19,23 @@ import {
 } from '@mantine/core'
 import { IconAdFilled, IconTrash } from '@tabler/icons-react'
 
-import { ApiServices } from '@/services'
+import { searchCertificates } from '@/services/api/certificateService'
+import { Event, createEvent, deleteEvent, searchEvents } from '@/services/api/eventService'
 
 const Dashboard: FC = (): JSX.Element => {
+  const location = useLocation()
+  const { propertiesDefinition } = location.state || {}
+  const { organizationId } = useParams()
   const [events, setEvents] = useState<MyEvent[]>([])
+  const [properties, setProperties] = useState<UserProperty[]>(
+    propertiesDefinition ? propertiesDefinition : [],
+  )
   const [certificates, setCertificates] = useState<Record<string, Certificate | null>>({})
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const apiServices = new ApiServices()
 
-  // Inicializar userProperties por defecto
-  const defaultUserProperties: UserProperty[] = [
-    { label: 'Numero Documento', name: 'numeroDocumento', type: 'text', mandatory: true },
-    { label: 'Nombres Y Apellidos', name: 'names', type: 'text', mandatory: true },
-    { label: 'Número de teléfono', name: 'numeroDeTelefono', type: 'text', mandatory: false },
-    { label: 'Correo', name: 'email', type: 'email', mandatory: true },
-  ]
-
-  const [newEvent, setNewEvent] = useState<Partial<MyEvent>>({
+  const [newEvent, setNewEvent] = useState<Partial<Event>>({
     name: '',
-    organization: '66d716d965613bac834484dd',
-    userProperties: defaultUserProperties,
+    organizationId,
   })
 
   const navigate = useNavigate()
@@ -49,24 +46,23 @@ const Dashboard: FC = (): JSX.Element => {
   }, [])
 
   const fetchEvents = async () => {
-    const response = await apiServices.fetchAllEvents()
-    setEvents(response as MyEvent[])
-    response.forEach((event: MyEvent) => {
+    const filters = { organizationId }
+    const response = await searchEvents(filters)
+    const data = response.data.items
+    setEvents(data as MyEvent[])
+    data.forEach((event: MyEvent) => {
       checkCertificate(event._id)
     })
   }
 
   const checkCertificate = async (eventId: string) => {
-    const filters = { event: eventId }
-    const response = await apiServices.fetchFilteredGlobal('Certificate', filters)
-    if (response && response.length > 0) {
-      setCertificates((prevCertificates) => {
-        const updatedCertificates: Record<string, Certificate | null> = {
-          ...prevCertificates,
-          [eventId]: response[0] as unknown as Certificate | null,
-        }
-        return updatedCertificates
-      })
+    const filters = { eventId }
+    const response = await searchCertificates(filters)
+    if (response && response.data?.length > 0) {
+      setCertificates((prevCertificates) => ({
+        ...prevCertificates,
+        [eventId]: response.data[0] as unknown as Certificate | null,
+      }))
     } else {
       setCertificates((prevCertificates) => ({
         ...prevCertificates,
@@ -77,21 +73,22 @@ const Dashboard: FC = (): JSX.Element => {
 
   const handleCreateCertificate = async () => {
     try {
-      const event: Event = { ...newEvent } as Event
-      await apiServices.createEvent(event)
+      await createEvent(newEvent as Event)
       setIsModalOpen(false)
       fetchEvents()
     } catch (error) {
-      throw new Error('Error creando evento:', error as ErrorOptions)
+      // eslint-disable-next-line no-console
+      console.error('Error creando evento:', error)
     }
   }
 
   const handleDeleteEvent = async (eventId: string) => {
     try {
-      await apiServices.deleteEvent(eventId)
+      await deleteEvent(eventId)
       fetchEvents()
     } catch (error) {
-      throw new Error('Error eliminando evento:', error as ErrorOptions)
+      // eslint-disable-next-line no-console
+      console.error('Error eliminando evento:', error)
     }
   }
 
@@ -103,29 +100,25 @@ const Dashboard: FC = (): JSX.Element => {
   }
 
   const handleUserPropertyChange = (index: number, field: string, value: string | boolean) => {
-    const updatedUserProperties = [...(newEvent.userProperties || [])]
-    updatedUserProperties[index] = {
-      ...updatedUserProperties[index],
+    const updatedProperties = [...properties]
+    updatedProperties[index] = {
+      ...updatedProperties[index],
       [field]: value,
     }
-    setNewEvent({ ...newEvent, userProperties: updatedUserProperties })
+    setProperties(updatedProperties)
   }
 
   const handleLabelChange = (index: number, value: string) => {
-    const updatedUserProperties = [...(newEvent.userProperties || [])]
-
-    updatedUserProperties[index].label = value
-    updatedUserProperties[index].name = value
+    const updatedProperties = [...properties]
+    updatedProperties[index].label = value
+    updatedProperties[index].name = value
       .toLowerCase()
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
       .replace(/ /g, '')
       .replace(/[^\w]/g, '')
 
-    setNewEvent((prevEvent) => ({
-      ...prevEvent,
-      userProperties: updatedUserProperties,
-    }))
+    setProperties(updatedProperties)
   }
 
   const handleAddUserProperty = () => {
@@ -135,18 +128,12 @@ const Dashboard: FC = (): JSX.Element => {
       type: 'text',
       mandatory: false,
     }
-    setNewEvent((prevEvent) => ({
-      ...prevEvent,
-      userProperties: [...(newEvent.userProperties || []), newProperty],
-    }))
+    setProperties([...properties, newProperty])
   }
 
   const handleRemoveUserProperty = (index: number) => {
-    const updatedUserProperties = (newEvent.userProperties || []).filter((_, i) => i !== index)
-    setNewEvent((prevEvent) => ({
-      ...prevEvent,
-      userProperties: updatedUserProperties,
-    }))
+    const updatedProperties = properties.filter((_, i) => i !== index)
+    setProperties(updatedProperties)
   }
 
   return (
@@ -182,13 +169,19 @@ const Dashboard: FC = (): JSX.Element => {
                 mt="md"
                 fullWidth
                 onClick={() =>
-                  navigate(`/design/${event._id}/?certificateId=${certificates[event._id]?._id}`)
+                  navigate(
+                    `/design/${event._id}/?certificateId=${certificates[event._id]?._id}&organizationId=${organizationId}`,
+                  )
                 }
               >
                 Editar certificado
               </Button>
             ) : (
-              <Button mt="md" fullWidth onClick={() => navigate(`/design/${event._id}`)}>
+              <Button
+                mt="md"
+                fullWidth
+                onClick={() => navigate(`/design/${event._id}?organizationId=${organizationId}`)}
+              >
                 Crear certificado
               </Button>
             )}
@@ -225,7 +218,7 @@ const Dashboard: FC = (): JSX.Element => {
 
           <Divider label="Propiedades de usuario" />
 
-          {newEvent.userProperties?.map((property, index) => (
+          {properties?.map((property, index) => (
             <Flex key={index} gap="md" justify="space-between" align="center" wrap="nowrap">
               <Box style={{ flex: 3 }}>
                 <TextInput

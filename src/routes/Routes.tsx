@@ -30,7 +30,16 @@ const RouterStack = createBrowserRouter(
         }}
       />
       <Route
-        path="/dashboard"
+        path="/dashboard/organizations"
+        lazy={async () => {
+          const { OrganizationsList } = await import('@/pages/Dashboard/OrganizationsList')
+          return {
+            Component: OrganizationsList,
+          }
+        }}
+      />
+      <Route
+        path="/dashboard/organization/:organizationId/events"
         lazy={async () => {
           const { Dashboard } = await import('@/pages/Dashboard')
           return {

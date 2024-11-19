@@ -9,6 +9,8 @@ import CanvasPreview from '@/components/CanvasPreview'
 import { CANVAS_PREVIEW_UNIQUE_ID } from '@/config/globalElementIds'
 import { CanvasObject } from '@/config/types'
 import { ApiServices } from '@/services'
+import { fetchAttendeeById, searchAttendees } from '@/services/api/attendeeService'
+import { searchCertificates } from '@/services/api/certificateService'
 import useCanvasObjects from '@/store/useCanvasObjects'
 import generateUniqueId from '@/utils/generateUniqueId'
 import getImageElementFromUrl from '@/utils/getImageElementFromUrl'
@@ -33,7 +35,6 @@ const GenerateCertificate: FC = (): JSX.Element => {
   const [loading, setLoading] = useState<boolean>(true)
   const params = useParams()
   const { attendeeId, certificateId } = params
-  const apiServices = new ApiServices()
 
   const appendAttributeObject = useCanvasObjects((state) => state.appendAttributeObject)
   const appendImageObject = useCanvasObjects((state) => state.appendImageObject)
@@ -43,21 +44,39 @@ const GenerateCertificate: FC = (): JSX.Element => {
     const fetchUserCertificates = async () => {
       setLoading(true)
       try {
-        const filters = { _id: attendeeId }
-        const [user] = (await apiServices.fetchFilteredGlobal(
-          'Attendee',
-          filters,
-        )) as unknown as Attendee[]
-        if (!user) {
+        const filters = {
+          userId: attendeeId,
+        }
+        const resultAttende = await searchAttendees(filters)
+        if (!resultAttende) {
           notification.success({ message: 'No se encontró el usuario' })
           return
         }
-        setAttendee(user)
 
-        const [certificate] = (await apiServices.fetchFilteredGlobal('Certificate', {
-          _id: certificateId,
-        })) as unknown as Certificate[]
-        setCertificateElements(certificate?.elements || [])
+        const attendee = resultAttende.data.items[0]
+        // Clonamos el objeto para evitar mutaciones directas
+        const updatedAttendeeData = {
+          ...attendee,
+          memberId: {
+            ...attendee.memberId,
+            properties: {
+              ...attendee.memberId.properties,
+              certificationHours: attendee.certificationHours,
+              typeAttendee: attendee.typeAttendee,
+            },
+          },
+        }
+
+        setAttendee(updatedAttendeeData)
+
+        if (updatedAttendeeData) {
+          const filters = {
+            eventId: attendee.eventId._id,
+          }
+          const certificateData = await searchCertificates(filters)
+
+          setCertificateElements(certificateData.data[0].elements || [])
+        }
       } catch (error) {
         notification.error({ message: 'Error al obtener los datos' })
       } finally {
@@ -108,26 +127,8 @@ const GenerateCertificate: FC = (): JSX.Element => {
   const handleRenderCertificate = useCallback(async () => {
     for (const element of certificateElements) {
       switch (element.type) {
-        case 'text':
-          appendAttributeObject({
-            id: element.id,
-            x: element.x,
-            y: element.y,
-            width: element.width,
-            height: element.height,
-            text: element.text || '',
-            opacity: element.opacity || 100,
-            fontColorHex: element.fontColorHex || '#000000',
-            fontSize: element.fontSize || 16,
-            fontFamily: element.fontFamily || 'Arial',
-            fontStyle: element.fontStyle || 'normal',
-            fontVariant: element.fontVariant || 'normal',
-            fontWeight: element.fontWeight || 'normal',
-            fontLineHeightRatio: element.fontLineHeightRatio || 1.2,
-          })
-          break
         case 'attribute':
-          element.text = (attendee?.properties[element.text || ''] as string) || ''
+          element.text = String(attendee?.memberId?.properties[element.text || ''] as string) || ''
           appendAttributeObject({
             id: element.id,
             x: element.x,

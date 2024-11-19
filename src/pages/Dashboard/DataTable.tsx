@@ -20,26 +20,40 @@ import { useDebouncedValue } from '@mantine/hooks'
 import { IconEdit, IconTrash } from '@tabler/icons-react'
 
 import { ApiServices } from '@/services'
+import { searchAttendees } from '@/services/api/attendeeService'
+import { fetchEventById } from '@/services/api/eventService'
+import { fetchOrganizationById } from '@/services/api/organizationService'
 
 interface EventProperty {
   label: string
+  fieldName: string
+  required: boolean
+}
+
+interface OrganizationData {
+  _id: string
   name: string
-  mandatory: boolean
+  properties: Record<string, unknown>
+  styles: {
+    eventImage: string
+  }
 }
 
 interface EventData {
-  _id: string
   name: string
-  organization: string
-  userProperties: Record<string, unknown>
+  organizationId: string
   styles: {
     eventImage: string
+    miniatureImage: string
   }
 }
 
 interface EventUser {
   _id: string
   properties: Record<string, unknown>
+  memberId: {
+    properties: Record<string, unknown>
+  }
 }
 
 const DataTable: React.FC = () => {
@@ -61,6 +75,7 @@ const DataTable: React.FC = () => {
   const [newUserData, setNewUserData] = useState<Record<string, string>>({})
   const [editingUserData, setEditingUserData] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState<boolean>(true)
+  const [organization, setOrganization] = useState<OrganizationData | null>(null)
   const [event, setEvent] = useState<EventData | null>(null)
   const { eventId } = useParams()
   const apiServices = new ApiServices()
@@ -76,9 +91,9 @@ const DataTable: React.FC = () => {
   const getEventUsersData = async () => {
     setLoading(true)
     try {
-      const filters = { event: eventId }
-      const response = await apiServices.fetchFilteredGlobal('Attendee', filters)
-      setUsers(response as unknown as EventUser[])
+      const filters = { eventId: eventId }
+      const response = await searchAttendees(filters)
+      setUsers(response.data.items as unknown as EventUser[])
     } finally {
       setLoading(false)
     }
@@ -87,11 +102,13 @@ const DataTable: React.FC = () => {
   const getEventProperties = async () => {
     setLoading(true)
     try {
-      const response = await apiServices.fetchFilteredGlobal('Event', { _id: eventId })
-      const result = response[0]
+      const responseEvent = await fetchEventById(eventId)
+      const responseOrg = await fetchOrganizationById(responseEvent.data.organizationId)
+      const result = responseOrg.data
       if (result) {
-        setEvent(result as unknown as EventData)
-        filterHeadTable(result.userProperties)
+        setEvent(responseEvent.data as unknown as EventData)
+        setOrganization(result)
+        filterHeadTable(result.propertiesDefinition)
       }
     } catch (error) {
       throw new Error('Error fetching event properties:', error as ErrorOptions)
@@ -100,14 +117,14 @@ const DataTable: React.FC = () => {
     }
   }
 
-  const filterHeadTable = (userProperties: unknown) => {
-    if (!userProperties || !Array.isArray(userProperties)) {
+  const filterHeadTable = (properties: any[]) => {
+    if (!properties || !Array.isArray(properties)) {
       return
     }
-    const headers = userProperties.map((property) => ({
+    const headers = properties.map((property) => ({
       label: property.label,
-      name: property.name,
-      mandatory: property.mandatory,
+      fieldName: property.fieldName,
+      required: property.required,
     }))
     setPropertyHeadersApi(headers)
   }
@@ -115,7 +132,7 @@ const DataTable: React.FC = () => {
   const filteredData = useMemo(() => {
     return users.filter((item) =>
       propertyHeadersApi.some((header) =>
-        item.properties[header.name]
+        item.memberId.properties[header.fieldName]
           ?.toString()
           .toLowerCase()
           .includes(debouncedSearchTerm.toLowerCase()),
@@ -141,7 +158,7 @@ const DataTable: React.FC = () => {
   }
 
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const cleanedValue = event.currentTarget.value.replace(/[.,]/g, '') // Eliminar puntos y comas
+    const cleanedValue = event.currentTarget.value.replace(/[.,]/g, '')
     setSearchTerm(cleanedValue)
   }
 
@@ -151,7 +168,7 @@ const DataTable: React.FC = () => {
       await apiServices.addAttendee({
         properties: newUserData,
         eventId: eventId || '',
-        organization: event?.organization || '',
+        organization: event?.organizationId || '',
       })
       await getEventUsersData()
       setModalState({ isOpen: false, mode: 'add' })
@@ -165,11 +182,11 @@ const DataTable: React.FC = () => {
     try {
       const updatedData = {
         eventId: eventId || '',
-        organization: event?.organization || '',
+        organization: event?.organizationId || '',
         properties: editingUserData,
       }
       await apiServices.updateAttendee(modalState.user?._id || '', updatedData)
-      await getEventUsersData() // Refrescar la lista de asistentes después de editar
+      await getEventUsersData()
       setModalState({ isOpen: false, mode: 'edit' })
     } catch (error) {
       throw new Error('Error updating user:', error as ErrorOptions)
@@ -179,7 +196,7 @@ const DataTable: React.FC = () => {
   const handleDeleteUser = async (userId: string) => {
     try {
       await apiServices.deleteAttendee(userId)
-      await getEventUsersData() // Refrescar la lista después de la eliminación
+      await getEventUsersData()
     } catch (error) {
       throw new Error('Error deleting user:', error as ErrorOptions)
     }
@@ -205,7 +222,7 @@ const DataTable: React.FC = () => {
         propertyHeadersApi.reduce(
           (acc, header) => ({
             ...acc,
-            [header.name]: String(user.properties[header.name] || ''),
+            [header.fieldName]: String(user.properties[header.fieldName] || ''),
           }),
           {},
         ),
@@ -230,7 +247,7 @@ const DataTable: React.FC = () => {
           <Loader />
         </Flex>
       ) : (
-        <Box fs={{ overflowX: 'auto', minWidth: '100%', marginTop: '1rem' }}>
+        <Box style={{ overflowX: 'auto', minWidth: '100%', marginTop: '1rem' }}>
           <Box>
             <Grid align="center" gutter="sm" my="sm">
               <Grid.Col span={8}>
@@ -238,7 +255,7 @@ const DataTable: React.FC = () => {
                   placeholder="Buscar usuario"
                   value={searchTerm}
                   onChange={handleSearchChange}
-                  fs={{ width: '100%' }}
+                  style={{ width: '100%' }}
                 />
               </Grid.Col>
               <Grid.Col span={4}>
@@ -252,17 +269,17 @@ const DataTable: React.FC = () => {
             <Table.Thead>
               <Table.Tr>
                 {propertyHeadersApi.map((header) => (
-                  <Table.Th key={header.name}>{header.label}</Table.Th>
+                  <th key={header.fieldName}>{header.label}</th>
                 ))}
-                <Table.Th>Acciones</Table.Th>
+                <th>Acciones</th>
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
               {displayedData.map((item) => (
                 <Table.Tr key={item._id}>
                   {propertyHeadersApi.map((header) => (
-                    <Table.Td key={`${item._id}-${header.name}`}>
-                      {String(item.properties[header.name] || '')}
+                    <Table.Td key={`${item._id}-${header.fieldName}`}>
+                      {String(item.memberId.properties[header.fieldName] || '')}
                     </Table.Td>
                   ))}
                   <Table.Td>
@@ -281,7 +298,7 @@ const DataTable: React.FC = () => {
               ))}
             </Table.Tbody>
           </Table>
-          <Group my="md" justify="flex-start" grow align="center">
+          <Group my="md" grow align="center">
             <Pagination
               value={page}
               onChange={setPage}
@@ -292,7 +309,7 @@ const DataTable: React.FC = () => {
               onChange={handlePerPageChange}
               data={['10', '20', '50', '100']}
               placeholder="Items per page"
-              fs={{ width: '100%' }}
+              style={{ width: '100%' }}
             />
           </Group>
         </Box>
@@ -307,11 +324,11 @@ const DataTable: React.FC = () => {
           <form onSubmit={handleAddUser}>
             {propertyHeadersApi.map((header) => (
               <TextInput
-                key={header.name}
+                key={header.fieldName}
                 label={header.label}
-                value={newUserData[header.name] || ''}
-                onChange={(e) => handleInputChange(header.name, e.target.value)}
-                required={header.mandatory}
+                value={newUserData[header.fieldName] || ''}
+                onChange={(e) => handleInputChange(header.fieldName, e.target.value)}
+                required={header.required}
               />
             ))}
             <Button
@@ -330,11 +347,11 @@ const DataTable: React.FC = () => {
           <form onSubmit={handleUpdateUser}>
             {propertyHeadersApi.map((header) => (
               <TextInput
-                key={header.name}
+                key={header.fieldName}
                 label={header.label}
-                value={editingUserData[header.name] || ''}
-                onChange={(e) => handleEditInputChange(header.name, e.target.value)}
-                required={header.mandatory}
+                value={editingUserData[header.fieldName] || ''}
+                onChange={(e) => handleEditInputChange(header.fieldName, e.target.value)}
+                required={header.required}
               />
             ))}
             <Group justify="flex-end" mt="md">
