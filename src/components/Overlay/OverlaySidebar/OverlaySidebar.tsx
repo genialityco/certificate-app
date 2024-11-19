@@ -3,7 +3,6 @@ import React, { useEffect, useState } from 'react'
 
 import { Paper } from '@mantine/core'
 
-import { ApiServices } from '@/services'
 import { fetchOrganizationById } from '@/services/api/organizationService'
 import useActionMode from '@/store/useActionMode'
 import useActiveObjectId from '@/store/useActiveObjectId'

@@ -8,8 +8,7 @@ import jsPDF from 'jspdf'
 import CanvasPreview from '@/components/CanvasPreview'
 import { CANVAS_PREVIEW_UNIQUE_ID } from '@/config/globalElementIds'
 import { CanvasObject } from '@/config/types'
-import { ApiServices } from '@/services'
-import { fetchAttendeeById, searchAttendees } from '@/services/api/attendeeService'
+import { searchAttendees } from '@/services/api/attendeeService'
 import { searchCertificates } from '@/services/api/certificateService'
 import useCanvasObjects from '@/store/useCanvasObjects'
 import generateUniqueId from '@/utils/generateUniqueId'
@@ -22,13 +21,11 @@ interface Attendee {
   event: string
   organization?: string
   properties: Record<string, unknown>
+  memberId: {
+    properties: Record<string, unknown>
+  }
 }
 
-interface Certificate {
-  elements: CanvasObject[]
-  event: string
-  createdAt: string
-}
 const GenerateCertificate: FC = (): JSX.Element => {
   const [attendee, setAttendee] = useState<Attendee | null>(null)
   const [certificateElements, setCertificateElements] = useState<CanvasObject[]>([])

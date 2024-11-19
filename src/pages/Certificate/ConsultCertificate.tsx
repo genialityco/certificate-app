@@ -1,4 +1,4 @@
-import { FC, useEffect, useMemo, useState } from 'react'
+import { FC, useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 
 import {
@@ -14,7 +14,6 @@ import {
 import { useMediaQuery } from '@mantine/hooks'
 import { IconSearch } from '@tabler/icons-react'
 
-import { ApiServices } from '@/services'
 import { searchAttendees } from '@/services/api/attendeeService'
 import { fetchEventById } from '@/services/api/eventService'
 import { searchMembers } from '@/services/api/memberService'
@@ -26,18 +25,25 @@ const ConsultCertificate: FC = (): JSX.Element => {
   const params = useParams()
   const navigate = useNavigate()
   const { eventId, certificateId } = params
-  const apiServices = useMemo(() => new ApiServices(), [])
   const theme = useMantineTheme()
 
   const isMobile = useMediaQuery(`(max-width: ${theme.breakpoints.sm})`)
 
   useEffect(() => {
     if (eventId) {
-      fetchEventById(eventId as string).then((data: MyEvent) => {
-        setEventData(data.data)
-      })
+      fetchEventData()
     }
-  }, [apiServices, eventId])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eventId])
+
+  const fetchEventData = async () => {
+    try {
+      const response = await fetchEventById(eventId)
+      setEventData(response.data)
+    } catch (error) {
+      notification.error({ message: 'Error al obtener los datos' })
+    }
+  }
 
   const handleSearch = async () => {
     if (!eventId) {

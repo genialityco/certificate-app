@@ -75,7 +75,7 @@ const DataTable: React.FC = () => {
   const [newUserData, setNewUserData] = useState<Record<string, string>>({})
   const [editingUserData, setEditingUserData] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState<boolean>(true)
-  const [organization, setOrganization] = useState<OrganizationData | null>(null)
+  const [, setOrganization] = useState<OrganizationData | null>(null)
   const [event, setEvent] = useState<EventData | null>(null)
   const { eventId } = useParams()
   const apiServices = new ApiServices()
@@ -117,6 +117,7 @@ const DataTable: React.FC = () => {
     }
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const filterHeadTable = (properties: any[]) => {
     if (!properties || !Array.isArray(properties)) {
       return
