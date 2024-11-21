@@ -23,6 +23,7 @@ import { ApiServices } from '@/services'
 import { searchAttendees } from '@/services/api/attendeeService'
 import { fetchEventById } from '@/services/api/eventService'
 import { fetchOrganizationById } from '@/services/api/organizationService'
+import notification from '@/utils/notification'
 
 interface EventProperty {
   label: string
@@ -58,9 +59,11 @@ interface EventUser {
 
 const DataTable: React.FC = () => {
   const [users, setUsers] = useState<EventUser[]>([])
-  const [displayedData, setDisplayedData] = useState<EventUser[]>([])
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [, setDisplayedData] = useState<EventUser[]>([])
   const [page, setPage] = useState<number>(1)
   const [perPage, setPerPage] = useState<number>(10)
+  const [totalPages, setTotalPages] = useState<number>(1)
   const [propertyHeadersApi, setPropertyHeadersApi] = useState<EventProperty[]>([])
   const [searchTerm, setSearchTerm] = useState<string>('')
   const [debouncedSearchTerm] = useDebouncedValue(searchTerm, 300)
@@ -88,14 +91,30 @@ const DataTable: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId])
 
+  useEffect(() => {
+    getEventUsersData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, perPage, debouncedSearchTerm])
+
   const getEventUsersData = async () => {
-    setLoading(true)
     try {
-      const filters = { eventId: eventId }
+      const filters = {
+        eventId: eventId,
+        page: page,
+        limit: perPage,
+      }
       const response = await searchAttendees(filters)
+
+      // Asegúrate de que `response.data.currentPage` esté correctamente definido.
       setUsers(response.data.items as unknown as EventUser[])
-    } finally {
-      setLoading(false)
+      setTotalPages(response.data.totalPages)
+
+      // Aquí, verifica que el servidor devuelve el `currentPage` correcto.
+      if (response.data.currentPage !== page) {
+        setPage(response.data.currentPage)
+      }
+    } catch {
+      notification.error({ message: 'Ocurrió un error' })
     }
   }
 
@@ -160,7 +179,7 @@ const DataTable: React.FC = () => {
 
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const cleanedValue = event.currentTarget.value.replace(/[.,]/g, '')
-    setSearchTerm(cleanedValue)
+    setSearchTerm(cleanedValue) // Se usa con debounce para minimizar solicitudes
   }
 
   const handleAddUser = async (e: { preventDefault: () => void }) => {
@@ -276,7 +295,7 @@ const DataTable: React.FC = () => {
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
-              {displayedData.map((item) => (
+              {users.map((item) => (
                 <Table.Tr key={item._id}>
                   {propertyHeadersApi.map((header) => (
                     <Table.Td key={`${item._id}-${header.fieldName}`}>
@@ -300,11 +319,7 @@ const DataTable: React.FC = () => {
             </Table.Tbody>
           </Table>
           <Group my="md" grow align="center">
-            <Pagination
-              value={page}
-              onChange={setPage}
-              total={Math.ceil(filteredData.length / perPage)}
-            />
+            <Pagination value={page} onChange={(newPage) => setPage(newPage)} total={totalPages} />
             <Select
               value={perPage.toString()}
               onChange={handlePerPageChange}

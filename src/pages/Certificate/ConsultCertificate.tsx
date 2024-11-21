@@ -53,16 +53,32 @@ const ConsultCertificate: FC = (): JSX.Element => {
 
     const filtersMember = { 'properties.idNumber': inputValue }
     const memberData = await searchMembers(filtersMember)
-    const filtersAttendee = {
-      memberId: memberData.data.items[0]._id,
+
+    if (!memberData?.data?.items?.length) {
+      notification.error({
+        message: 'No se encontró ningún miembro con ese número de identificación',
+      })
+      return
     }
-    const attendeeData = await searchAttendees(filtersAttendee)
-    const attendee = attendeeData.data.items[0]
-    if (attendee) {
-      navigate(`/certificate/${certificateId}/${attendee.userId._id}`)
-    } else {
-      notification.error({ message: 'No se encontró el usuario' })
+
+    const members = memberData.data.items
+
+    for (const member of members) {
+      const filtersAttendee = { memberId: member._id, eventId: eventId }
+      const attendeeData = await searchAttendees(filtersAttendee)
+      const attendee = attendeeData?.data?.items?.[0]
+
+      if (attendee) {
+        navigate(`/certificate/${certificateId}/${attendee.userId._id}`)
+        return
+      }
     }
+
+    // Si ningún attendee fue encontrado
+    // notification.error({ message: 'No se encontró el usuario asociado a ninguno de los miembros' })
+    notification.error({
+      message: 'La cédula ingresada no tienen ningún certificado para este evento.',
+    })
   }
 
   if (!eventData) {
