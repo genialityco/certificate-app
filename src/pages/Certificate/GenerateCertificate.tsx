@@ -33,6 +33,7 @@ const GenerateCertificate: FC = (): JSX.Element => {
   const params = useParams()
   const { attendeeId, certificateId } = params
 
+  const appendTextObject = useCanvasObjects((state) => state.appendTextObject)
   const appendAttributeObject = useCanvasObjects((state) => state.appendAttributeObject)
   const appendImageObject = useCanvasObjects((state) => state.appendImageObject)
 
@@ -124,6 +125,27 @@ const GenerateCertificate: FC = (): JSX.Element => {
   const handleRenderCertificate = useCallback(async () => {
     for (const element of certificateElements) {
       switch (element.type) {
+        case 'text':
+          appendTextObject({
+            id: element.id,
+            x: element.x,
+            y: element.y,
+            width: element.width,
+            height: element.height,
+            text: element.text,
+            fontColorHex: element.fontColorHex,
+            fontSize: element.fontSize,
+            fontFamily: element.fontFamily,
+            fontStyle: element.fontStyle,
+            fontWeight: element.fontWeight,
+            fontVariant: element.fontVariant,
+            textAlignHorizontal: element.textAlignHorizontal,
+            textAlignVertical: element.textAlignVertical,
+            textJustify: element.textJustify,
+            opacity: element.opacity,
+            fontLineHeightRatio: element.fontLineHeightRatio,
+          })
+          break
         case 'attribute':
           element.text = String(attendee?.memberId?.properties[element.text || ''] as string) || ''
           appendAttributeObject({
@@ -150,7 +172,13 @@ const GenerateCertificate: FC = (): JSX.Element => {
           break
       }
     }
-  }, [certificateElements, appendAttributeObject, commonPushImageObject, attendee])
+  }, [
+    certificateElements,
+    appendTextObject,
+    appendAttributeObject,
+    commonPushImageObject,
+    attendee,
+  ])
 
   // Renderizar el certificado al cargar los elementos
   useEffect(() => {
