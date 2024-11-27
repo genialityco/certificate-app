@@ -56,6 +56,8 @@ interface EventUser {
   memberId: {
     properties: Record<string, unknown>
   }
+  certificationHours: string
+  typeAttendee: string
 }
 
 const DataTable: React.FC = () => {
@@ -76,7 +78,7 @@ const DataTable: React.FC = () => {
     isOpen: false,
     mode: 'add',
   })
-  const [newUserData, setNewUserData] = useState<Record<string, string>>({})
+  const [newUserData] = useState<Record<string, string>>({})
   const [editingUserData, setEditingUserData] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState<boolean>(true)
   const [, setOrganization] = useState<OrganizationData | null>(null)
@@ -225,12 +227,12 @@ const DataTable: React.FC = () => {
     }
   }
 
-  const handleInputChange = (name: string, value: string) => {
-    setNewUserData((prevData) => ({
-      ...prevData,
-      [name]: value,
-    }))
-  }
+  // const handleInputChange = (name: string, value: string) => {
+  //   setNewUserData((prevData) => ({
+  //     ...prevData,
+  //     [name]: value,
+  //   }))
+  // }
 
   const handleEditInputChange = (name: string, value: string) => {
     setEditingUserData((prevData) => ({
@@ -254,14 +256,14 @@ const DataTable: React.FC = () => {
     setModalState({ isOpen: true, mode, user })
   }
 
-  const generateUniqueEmail = (fullName: string) => {
-    const randomString = Math.random().toString(36).substring(2, 8)
-    const namePart = fullName
-      .toLowerCase()
-      .replace(/\s+/g, '.')
-      .replace(/[^a-z.]/g, '')
-    return `${namePart}.${randomString}@geniality.com.co`
-  }
+  // const generateUniqueEmail = (fullName: string) => {
+  //   const randomString = Math.random().toString(36).substring(2, 8)
+  //   const namePart = fullName
+  //     .toLowerCase()
+  //     .replace(/\s+/g, '.')
+  //     .replace(/[^a-z.]/g, '')
+  //   return `${namePart}.${randomString}@geniality.com.co`
+  // }
 
   return (
     <Container>
