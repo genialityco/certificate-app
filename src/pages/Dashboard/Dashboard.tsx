@@ -186,7 +186,7 @@ const Dashboard: FC = (): JSX.Element => {
               </Button>
             )}
             <Button mt="md" fullWidth onClick={() => navigate(`/event/users/${event._id}`)}>
-              Gestionar usuarios
+              Gestionar asistentes
             </Button>
             <ActionIcon
               c="red"

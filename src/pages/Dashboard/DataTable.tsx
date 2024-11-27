@@ -5,6 +5,7 @@ import {
   ActionIcon,
   Box,
   Button,
+  Checkbox,
   Container,
   Flex,
   Grid,
@@ -141,11 +142,13 @@ const DataTable: React.FC = () => {
     if (!properties || !Array.isArray(properties)) {
       return
     }
-    const headers = properties.map((property) => ({
-      label: property.label,
-      fieldName: property.fieldName,
-      required: property.required,
-    }))
+    const headers = properties
+      .filter((property) => property.fieldName !== 'password')
+      .map((property) => ({
+        label: property.label,
+        fieldName: property.fieldName,
+        required: property.required,
+      }))
     setPropertyHeadersApi(headers)
   }
 
@@ -299,9 +302,13 @@ const DataTable: React.FC = () => {
                 <Table.Tr key={item._id}>
                   {propertyHeadersApi.map((header) => (
                     <Table.Td key={`${item._id}-${header.fieldName}`}>
-                      {String(item.memberId.properties[header.fieldName] || '')}
+                      {header.fieldName === 'certificationHours' ||
+                      header.fieldName === 'typeAttendee'
+                        ? String(item[header.fieldName] || '')
+                        : String(item.memberId.properties[header.fieldName] || '')}
                     </Table.Td>
                   ))}
+
                   <Table.Td>
                     <Group>
                       <Flex>
@@ -334,11 +341,11 @@ const DataTable: React.FC = () => {
       <Modal
         opened={modalState.isOpen}
         onClose={() => setModalState({ isOpen: false, mode: 'add' })}
-        title={modalState.mode === 'add' ? 'Añadir Usuario' : 'Editar Usuario'}
+        title={modalState.mode === 'add' ? 'Añadir Asistente' : 'Editar Asistente'}
       >
         {modalState.mode === 'add' ? (
           <form onSubmit={handleAddUser}>
-            {propertyHeadersApi.map((header) => (
+            {/* {propertyHeadersApi.map((header) => (
               <TextInput
                 key={header.fieldName}
                 label={header.label}
@@ -346,15 +353,19 @@ const DataTable: React.FC = () => {
                 onChange={(e) => handleInputChange(header.fieldName, e.target.value)}
                 required={header.required}
               />
-            ))}
-            <Button
+            ))} */}
+            <TextInput label="Documento del asistente" />
+            <TextInput label="Tipo de asistente" />
+            <TextInput label="Horas certificadas" />
+            <Checkbox my="md" defaultChecked labelPosition="right" label="Marcar como asistente" />
+            {/* <Button
               variant="white"
               onClick={() =>
                 handleInputChange('email', generateUniqueEmail(newUserData['names'] || ''))
               }
             >
               Generar Correo Único
-            </Button>
+            </Button> */}
             <Group justify="flex-end" mt="md">
               <Button type="submit">Guardar</Button>
             </Group>
