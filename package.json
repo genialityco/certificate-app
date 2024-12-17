@@ -66,6 +66,7 @@
     "svg-path-bbox": "^2.1.0",
     "svgpath": "^2.6.0",
     "uuid": "^10.0.0",
+    "xlsx": "^0.18.5",
     "zustand": "^4.5.5"
   },
   "devDependencies": {

@@ -41,17 +41,28 @@ const GenerateCertificate: FC = (): JSX.Element => {
   useEffect(() => {
     const fetchUserCertificates = async () => {
       setLoading(true)
+
       try {
-        const filters = {
-          userId: attendeeId,
+        let resultAttendee
+
+        // Intentar buscar por userId
+        const filtersByUserId = { userId: attendeeId }
+        resultAttendee = await searchAttendees(filtersByUserId)
+
+        // Si no se encuentra por userId, buscar por memberId
+        if (!resultAttendee || resultAttendee.message === 'No se encontraron asistentes') {
+          const filtersByMemberId = { memberId: attendeeId }
+          resultAttendee = await searchAttendees(filtersByMemberId)
         }
-        const resultAttende = await searchAttendees(filters)
-        if (!resultAttende) {
+
+        // Si no se encontró ningún asistente después de ambas búsquedas
+        if (!resultAttendee || resultAttendee.message === 'No se encontraron asistentes') {
           notification.success({ message: 'No se encontró el usuario' })
           return
         }
 
-        const attendee = resultAttende.data.items[0]
+        const attendee = resultAttendee.data.items[0]
+
         // Clonamos el objeto para evitar mutaciones directas
         const updatedAttendeeData = {
           ...attendee,
@@ -67,13 +78,12 @@ const GenerateCertificate: FC = (): JSX.Element => {
 
         setAttendee(updatedAttendeeData)
 
+        // Buscar certificados asociados al evento
         if (updatedAttendeeData) {
-          const filters = {
-            eventId: attendee.eventId._id,
-          }
-          const certificateData = await searchCertificates(filters)
+          const filtersByEventId = { eventId: attendee.eventId._id }
+          const certificateData = await searchCertificates(filtersByEventId)
 
-          setCertificateElements(certificateData.data[0].elements || [])
+          setCertificateElements(certificateData.data[0]?.elements || [])
         }
       } catch (error) {
         notification.error({ message: 'Error al obtener los datos' })
@@ -81,6 +91,7 @@ const GenerateCertificate: FC = (): JSX.Element => {
         setLoading(false)
       }
     }
+
     if (attendeeId && certificateId) {
       fetchUserCertificates()
     }

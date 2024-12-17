@@ -3,8 +3,8 @@ import api from './api'
 export interface Event {
   name: string
   description: string
-  startDate: Date
-  endDate: Date
+  startDate: Date | string
+  endDate: Date | string
   location: object
   styles: object
   eventSections: object

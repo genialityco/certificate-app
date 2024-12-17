@@ -20,7 +20,8 @@ declare global {
     label: string
     name: string
     type: string
-    mandatory: boolean
+    required: boolean
+    show: boolean
   }
 
   interface Certificate {

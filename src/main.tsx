@@ -23,7 +23,7 @@ if (import.meta.env.MODE === 'test') {
 } else {
   root.render(
     <StrictMode>
-      <App />
+      <App />,
     </StrictMode>,
   )
 }

@@ -8,6 +8,7 @@ import {
   Container,
   Group,
   Input,
+  Select,
   Text,
   useMantineTheme,
 } from '@mantine/core'
@@ -21,7 +22,9 @@ import notification from '@/utils/notification'
 
 const ConsultCertificate: FC = (): JSX.Element => {
   const [inputValue, setInputValue] = useState<string>('')
+  const [searchOption, setSearchOption] = useState<'idNumber' | 'fullName'>('idNumber')
   const [eventData, setEventData] = useState<MyEvent | null>(null)
+
   const params = useParams()
   const navigate = useNavigate()
   const { eventId, certificateId } = params
@@ -30,9 +33,7 @@ const ConsultCertificate: FC = (): JSX.Element => {
   const isMobile = useMediaQuery(`(max-width: ${theme.breakpoints.sm})`)
 
   useEffect(() => {
-    if (eventId) {
-      fetchEventData()
-    }
+    if (eventId) fetchEventData()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId])
 
@@ -51,39 +52,47 @@ const ConsultCertificate: FC = (): JSX.Element => {
       return
     }
 
-    const filtersMember = { 'properties.idNumber': inputValue }
-    const memberData = await searchMembers(filtersMember)
+    // Filtro según la opción seleccionada
+    const filtersMember =
+      searchOption === 'idNumber'
+        ? { 'properties.idNumber': inputValue }
+        : { 'properties.fullName': { $regex: inputValue, $options: 'i' } }
 
-    if (!memberData?.data?.items?.length) {
-      notification.error({
-        message: 'No se encontró ningún miembro con ese número de identificación',
-      })
-      return
-    }
+    try {
+      const memberData = await searchMembers(filtersMember)
 
-    const members = memberData.data.items
-
-    for (const member of members) {
-      const filtersAttendee = { memberId: member._id, eventId: eventId }
-      const attendeeData = await searchAttendees(filtersAttendee)
-      const attendee = attendeeData?.data?.items?.[0]
-
-      if (attendee) {
-        navigate(`/certificate/${certificateId}/${attendee.userId._id}`)
+      if (!memberData?.data?.items?.length) {
+        notification.error({
+          message: `No se encontró ningúna persona con ${
+            searchOption === 'idNumber' ? 'ese número de identificación' : 'ese nombre'
+          }.`,
+        })
         return
       }
+
+      const members = memberData.data.items
+
+      for (const member of members) {
+        const filtersAttendee = { memberId: member._id, eventId: eventId }
+        const attendeeData = await searchAttendees(filtersAttendee)
+        const attendee = attendeeData?.data?.items?.[0]
+
+        if (attendee) {
+          const userId = attendee?.userId?._id ? attendee.userId._id : member._id
+          navigate(`/certificate/${certificateId}/${userId}`)
+          return
+        }
+      }
+
+      notification.error({
+        message: 'No se encontró ningún certificado para los datos ingresados.',
+      })
+    } catch (error) {
+      notification.error({ message: 'Error al buscar la información de la persona.' })
     }
-
-    // Si ningún attendee fue encontrado
-    // notification.error({ message: 'No se encontró el usuario asociado a ninguno de los miembros' })
-    notification.error({
-      message: 'La cédula ingresada no tienen ningún certificado para este evento.',
-    })
   }
 
-  if (!eventData) {
-    return <Text>Cargando datos del evento...</Text>
-  }
+  if (!eventData) return <Text>Cargando datos del evento...</Text>
 
   return (
     <Container
@@ -116,21 +125,35 @@ const ConsultCertificate: FC = (): JSX.Element => {
 
         <Card withBorder shadow="sm" mt="xl" padding="lg">
           <Text size="md" mb="md">
-            Para consultar, ingresa tu número de documento
+            Consulta tu certificado:
           </Text>
-          <Group>
+          <Group
+            style={{
+              flexDirection: isMobile ? 'column' : 'row',
+            }}
+          >
+            <Select
+              data={[
+                { value: 'idNumber', label: 'Número de documento' },
+                { value: 'fullName', label: 'Nombres y apellidos' },
+              ]}
+              placeholder="Selecciona una opción"
+              value={searchOption}
+              onChange={(value) => setSearchOption(value as 'idNumber' | 'fullName')}
+              style={{ flex: '1', width: '100%' }}
+            />
             <Input
-              placeholder="Número de documento"
+              placeholder={searchOption === 'idNumber' ? 'Número de documento' : 'Nombre completo'}
               radius="md"
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
-              style={{ width: '80%' }}
+              style={{ flex: '3', width: '100%' }}
             />
             <ActionIcon
               variant="filled"
               color="blue"
               onClick={handleSearch}
-              style={{ width: '10%' }}
+              style={{ flex: '0.5', width: '100%' }}
             >
               <IconSearch />
             </ActionIcon>

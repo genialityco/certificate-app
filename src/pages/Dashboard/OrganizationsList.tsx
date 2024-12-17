@@ -39,7 +39,10 @@ const OrganizationsList: FC = () => {
               mt="md"
               onClick={() =>
                 navigate(`/dashboard/organization/${organization._id}/events`, {
-                  state: { propertiesDefinition: organization.propertiesDefinition },
+                  state: {
+                    propertiesDefinition: organization.propertiesDefinition,
+                    organization: organization,
+                  },
                 })
               }
               fullWidth
