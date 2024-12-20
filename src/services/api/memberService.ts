@@ -63,12 +63,17 @@ export const deleteMember = async (id: string) => {
 }
 
 // Buscar miembros con filtros
-export const searchMembers = async (filters: any) => {
+export const searchMembers = async (
+  filters: any,
+  paginationDto: { page?: number; limit?: number },
+) => {
   try {
-    const response = await api.get('/members/search', { params: filters })
+    const response = await api.get('/members/search', {
+      params: { ...filters, ...paginationDto },
+    })
     return response.data
   } catch (error) {
-    console.error('Error searching members with filters:', error)
+    console.error('Error searching members:', error)
     throw error
   }
 }

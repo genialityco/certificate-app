@@ -8,12 +8,12 @@ import {
   Container,
   Group,
   Input,
-  Select,
   Text,
   useMantineTheme,
 } from '@mantine/core'
 import { useMediaQuery } from '@mantine/hooks'
 import { IconSearch } from '@tabler/icons-react'
+import { debounce } from 'lodash'
 
 import { searchAttendees } from '@/services/api/attendeeService'
 import { fetchEventById } from '@/services/api/eventService'
@@ -22,8 +22,10 @@ import notification from '@/utils/notification'
 
 const ConsultCertificate: FC = (): JSX.Element => {
   const [inputValue, setInputValue] = useState<string>('')
-  const [searchOption, setSearchOption] = useState<'idNumber' | 'fullName'>('idNumber')
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [searchResults, setSearchResults] = useState<any[]>([])
   const [eventData, setEventData] = useState<MyEvent | null>(null)
+  const [loading, setLoading] = useState(false)
 
   const params = useParams()
   const navigate = useNavigate()
@@ -46,49 +48,58 @@ const ConsultCertificate: FC = (): JSX.Element => {
     }
   }
 
-  const handleSearch = async () => {
-    if (!eventId) {
-      notification.error({ message: 'No se ha seleccionado un evento' })
+  const handleSearch = debounce(async (value: string) => {
+    if (!eventId || value.length < 3) {
+      setSearchResults([])
       return
     }
 
-    // Filtro según la opción seleccionada
-    const filtersMember =
-      searchOption === 'idNumber'
-        ? { 'properties.idNumber': inputValue }
-        : { 'properties.fullName': { $regex: inputValue, $options: 'i' } }
+    const isNumeric = /^\d+$/.test(value)
+    const filters = isNumeric
+      ? { 'properties.idNumber': value, organizationId: eventData?.organizationId }
+      : { 'properties.fullName': value, organizationId: eventData?.organizationId }
+
+    setLoading(true)
 
     try {
-      const memberData = await searchMembers(filtersMember)
+      const memberData = await searchMembers(filters, { page: 1, limit: 5 })
 
-      if (!memberData?.data?.items?.length) {
-        notification.error({
-          message: `No se encontró ningúna persona con ${
-            searchOption === 'idNumber' ? 'ese número de identificación' : 'ese nombre'
-          }.`,
-        })
+      if (!memberData.data.items.length) {
+        setSearchResults([])
+        notification.error({ message: `No se encontraron resultados para "${value}"` })
         return
       }
 
-      const members = memberData.data.items
-
-      for (const member of members) {
-        const filtersAttendee = { memberId: member._id, eventId: eventId }
-        const attendeeData = await searchAttendees(filtersAttendee)
-        const attendee = attendeeData?.data?.items?.[0]
-
-        if (attendee) {
-          const userId = attendee?.userId?._id ? attendee.userId._id : member._id
-          navigate(`/certificate/${certificateId}/${userId}`)
-          return
-        }
-      }
-
-      notification.error({
-        message: 'No se encontró ningún certificado para los datos ingresados.',
-      })
+      setSearchResults(memberData.data.items)
     } catch (error) {
-      notification.error({ message: 'Error al buscar la información de la persona.' })
+      notification.error({ message: 'Error al buscar los datos.' })
+    } finally {
+      setLoading(false)
+    }
+  }, 300) // Debounce de 300ms
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
+    setInputValue(value)
+    handleSearch(value) // Dispara la búsqueda con debounce
+  }
+
+  const handleResultClick = async (memberId: string) => {
+    try {
+      const filtersAttendee = { memberId, eventId }
+      const attendeeData = await searchAttendees(filtersAttendee)
+      const attendee = attendeeData.data.items[0]
+
+      if (attendee) {
+        const userId = attendee.userId?._id || memberId
+        navigate(`/certificate/${certificateId}/${userId}`)
+      } else {
+        notification.error({
+          message: 'No se encontró un certificado para el miembro seleccionado.',
+        })
+      }
+    } catch (error) {
+      notification.error({ message: 'Error al verificar el certificado.' })
     }
   }
 
@@ -125,39 +136,50 @@ const ConsultCertificate: FC = (): JSX.Element => {
 
         <Card withBorder shadow="sm" mt="xl" padding="lg">
           <Text size="md" mb="md">
-            Consulta tu certificado:
+            Ingresa tu número de documento o nombre para buscar tu certificado:
           </Text>
-          <Group
-            style={{
-              flexDirection: isMobile ? 'column' : 'row',
-            }}
-          >
-            <Select
-              data={[
-                { value: 'idNumber', label: 'Número de documento' },
-                { value: 'fullName', label: 'Nombres y apellidos' },
-              ]}
-              placeholder="Selecciona una opción"
-              value={searchOption}
-              onChange={(value) => setSearchOption(value as 'idNumber' | 'fullName')}
-              style={{ flex: '1', width: '100%' }}
-            />
+          <Group style={{ flexDirection: isMobile ? 'column' : 'row' }}>
             <Input
-              placeholder={searchOption === 'idNumber' ? 'Número de documento' : 'Nombre completo'}
+              placeholder="Número de documento o nombre completo"
               radius="md"
               value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
+              onChange={handleInputChange}
               style={{ flex: '3', width: '100%' }}
             />
             <ActionIcon
               variant="filled"
               color="blue"
-              onClick={handleSearch}
+              onClick={() => handleSearch(inputValue)}
               style={{ flex: '0.5', width: '100%' }}
             >
               <IconSearch />
             </ActionIcon>
           </Group>
+          {loading && (
+            <Text size="sm" color="gray" mt="md">
+              Cargando resultados...
+            </Text>
+          )}
+          {searchResults.length > 0 && (
+            <Box mt="md" style={{ backgroundColor: 'white', borderRadius: '8px', padding: '10px' }}>
+              {searchResults.map((result) => (
+                <Box
+                  key={result._id}
+                  style={{
+                    padding: '10px',
+                    cursor: 'pointer',
+                    borderBottom: '1px solid #eee',
+                  }}
+                  onClick={() => handleResultClick(result._id)}
+                >
+                  <Text>{result.properties.fullName}</Text>
+                  <Text size="xs" color="gray">
+                    Documento: {result.properties.idNumber}
+                  </Text>
+                </Box>
+              ))}
+            </Box>
+          )}
         </Card>
       </Box>
     </Container>
