@@ -3,7 +3,7 @@ declare global {
     data(data: any): unknown
     _id: string
     name: string
-    organization: string | { $oid: string }
+    organizationId: string | { $oid: string }
     userProperties: UserProperty[]
     styles: {
       eventImage: string

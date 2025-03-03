@@ -104,7 +104,6 @@ const ConsultCertificate: FC = (): JSX.Element => {
   }
 
   if (!eventData) return <Text>Cargando datos del evento...</Text>
-
   return (
     <Container
       style={{
@@ -113,7 +112,7 @@ const ConsultCertificate: FC = (): JSX.Element => {
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
-        background: `url(${eventData.styles.eventImage}) no-repeat center center`,
+        background: `url(${encodeURI(eventData.styles.eventImage)}) no-repeat center center`,
         backgroundSize: 'cover',
         backgroundPosition: 'top',
       }}

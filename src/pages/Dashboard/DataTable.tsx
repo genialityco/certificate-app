@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 
@@ -25,7 +26,7 @@ import * as XLSX from 'xlsx'
 
 import { createAttendee, searchAttendees, updateAttendee } from '@/services/api/attendeeService'
 import { fetchEventById } from '@/services/api/eventService'
-import { createMember, updateMember } from '@/services/api/memberService'
+import { createMember, searchMembers, updateMember } from '@/services/api/memberService'
 import { fetchOrganizationById } from '@/services/api/organizationService'
 import notification from '@/utils/notification'
 
@@ -302,7 +303,6 @@ const DataTable: React.FC = () => {
       const totalBatches = batches.length
 
       for (const [index, batch] of batches.entries()) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const formattedData = batch.map((row: any) => {
           const properties = propertyHeadersApi.reduce(
             (acc, header) => {
@@ -314,26 +314,69 @@ const DataTable: React.FC = () => {
 
           return {
             eventId: eventId || '',
-            properties,
+            properties: {
+              ...properties,
+              idNumber: String(properties.idNumber || ''), // Asegurar que idNumber sea string
+              certificationHours: properties.certificationHours
+                ? Number(properties.certificationHours)
+                : undefined, // Convertir si existe
+              typeAttendee: properties.typeAttendee || undefined, // Si existe, incluirlo
+            },
             attended: true,
+            isIncomplete: !properties.idNumber, // Marcar si es usuario con información incompleta
           }
         })
 
-        // Procesa el batch con reintentos
-        await Promise.all(
-          formattedData.map(async (user) => {
-            await retryRequest(async () => {
-              const memberResponse = await createMember({
-                properties: user.properties,
-                organizationId: event?.organizationId || '',
-              })
+        // Filtrar usuarios con información incompleta
+        const validUsers = formattedData.filter((user) => {
+          if (!user.properties.idNumber) {
+            return false // No incluir este usuario en la carga
+          }
+          return true
+        })
 
-              await createAttendee({
-                eventId: user.eventId,
-                memberId: memberResponse.data._id,
-                attended: user.attended,
-              })
-            }, 3) // Máximo de 3 reintentos
+        // Procesa cada usuario en paralelo con validación previa
+        await Promise.all(
+          validUsers.map(async (user) => {
+            const { idNumber, certificationHours, typeAttendee } = user.properties
+
+            // Buscar si ya existe un miembro con el idNumber (cédula)
+            const existingMembers = await searchMembers(
+              { 'properties.idNumber': idNumber },
+              { page: 1, limit: 1 },
+            )
+
+            if (existingMembers?.data?.items.length > 0) {
+              // Si ya existe, obtener el memberId
+              const existingMember = existingMembers?.data?.items[0] // Tomamos el primer resultado
+
+              // Solo creamos el attendee con el memberId existente y los datos adicionales
+              await retryRequest(async () => {
+                await createAttendee({
+                  eventId: user.eventId,
+                  memberId: existingMember._id,
+                  attended: user.attended,
+                  certificationHours, // Si existe, se envía
+                  typeAttendee, // Si existe, se envía
+                })
+              }, 3)
+            } else {
+              // Si no existe, lo creamos y luego creamos el attendee
+              await retryRequest(async () => {
+                const memberResponse = await createMember({
+                  properties: user.properties,
+                  organizationId: event?.organizationId || '',
+                })
+
+                await createAttendee({
+                  eventId: user.eventId,
+                  memberId: memberResponse.data._id,
+                  attended: user.attended,
+                  certificationHours, // Si existe, se envía
+                  typeAttendee, // Si existe, se envía
+                })
+              }, 3)
+            }
           }),
         )
 
@@ -437,7 +480,7 @@ const DataTable: React.FC = () => {
             <Select
               value={perPage.toString()}
               onChange={(value) => setPerPage(Number(value) || 10)}
-              data={['10', '20', '50', '100']}
+              data={['10', '20', '50', '100', '200']}
               placeholder="Items per page"
             />
           </Group>

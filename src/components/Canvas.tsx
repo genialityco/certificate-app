@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 import { type PointerEvent, type Touch, type TouchEvent, useEffect, useMemo, useRef } from 'react'
 import { useLocation } from 'react-router-dom'
 
@@ -91,6 +92,11 @@ export default function Canvas({ eventId }: { eventId: string }) {
     const getCertElements = async () => {
       try {
         const response = await fetchCertificateById(certificateId)
+
+        // Asignar tamaño con valores predeterminados
+        const { width = 1920, height = 1080 } = response?.data?.size || {}
+        canvasWorkingSize.width = width
+        canvasWorkingSize.height = height
 
         if (response && response.data) {
           const certificateData = response.data as { elements: CanvasObject[] }
@@ -673,6 +679,7 @@ export default function Canvas({ eventId }: { eventId: string }) {
         const dataCertificate = {
           eventId: eventId,
           elements: elementsToSave,
+          size: canvasWorkingSize,
         }
         await createCertificate(dataCertificate)
       }
