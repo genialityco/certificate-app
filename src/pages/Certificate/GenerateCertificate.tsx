@@ -1,5 +1,5 @@
 import { FC, useCallback, useEffect, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useLocation, useParams } from 'react-router-dom'
 
 import { Button } from '@mantine/core'
 import { IconDownload } from '@tabler/icons-react'
@@ -37,6 +37,9 @@ const GenerateCertificate: FC = (): JSX.Element => {
   const appendAttributeObject = useCanvasObjects((state) => state.appendAttributeObject)
   const appendImageObject = useCanvasObjects((state) => state.appendImageObject)
 
+  const location = useLocation()
+  const { eventId } = location.state || {}
+
   // Obtener datos del usuario y del certificado
   useEffect(() => {
     const fetchUserCertificates = async () => {
@@ -46,12 +49,12 @@ const GenerateCertificate: FC = (): JSX.Element => {
         let resultAttendee
 
         // Intentar buscar por userId
-        const filtersByUserId = { userId: attendeeId }
+        const filtersByUserId = { userId: attendeeId, eventId }
         resultAttendee = await searchAttendees(filtersByUserId)
 
         // Si no se encuentra por userId, buscar por memberId
         if (!resultAttendee || resultAttendee.message === 'No se encontraron asistentes') {
-          const filtersByMemberId = { memberId: attendeeId }
+          const filtersByMemberId = { memberId: attendeeId, eventId }
           resultAttendee = await searchAttendees(filtersByMemberId)
         }
 
@@ -81,6 +84,7 @@ const GenerateCertificate: FC = (): JSX.Element => {
         // Buscar certificados asociados al evento
         if (updatedAttendeeData) {
           const filtersByEventId = { eventId: attendee.eventId._id }
+          console.log(attendee.eventId._id)
           const certificateData = await searchCertificates(filtersByEventId)
 
           setCertificateElements(certificateData.data[0]?.elements || [])

@@ -92,7 +92,9 @@ const ConsultCertificate: FC = (): JSX.Element => {
 
       if (attendee) {
         const userId = attendee.userId?._id || memberId
-        navigate(`/certificate/${certificateId}/${userId}`)
+        navigate(`/certificate/${certificateId}/${userId}`, {
+          state: { eventId },
+        })
       } else {
         notification.error({
           message: 'No se encontró un certificado para el miembro seleccionado.',
