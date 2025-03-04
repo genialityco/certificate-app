@@ -15,12 +15,15 @@ import generateUniqueId from '@/utils/generateUniqueId'
 import getImageElementFromUrl from '@/utils/getImageElementFromUrl'
 import notification from '@/utils/notification'
 
-// Tipos para el esquema de Attendee y Certificate
 interface Attendee {
   _id: string
-  event: string
+  eventId: {
+    _id: string
+    name?: string
+  }
   organization?: string
-  properties: Record<string, unknown>
+  certificationHours?: number
+  typeAttendee?: string
   memberId: {
     properties: Record<string, unknown>
   }
@@ -30,79 +33,123 @@ const GenerateCertificate: FC = (): JSX.Element => {
   const [attendee, setAttendee] = useState<Attendee | null>(null)
   const [certificateElements, setCertificateElements] = useState<CanvasObject[]>([])
   const [loading, setLoading] = useState<boolean>(true)
+
   const params = useParams()
   const { attendeeId, certificateId } = params
 
+  // Este eventId podría venir de la ruta, de la ubicación actual, etc.
+  // Por ejemplo:
+  const location = useLocation()
+  const { eventId: eventIdFromLocation } = location.state || {}
+
+  // --------------------------------------------------------
+  //   1) Determinar si certificateId es un evento o un certificado
+  // --------------------------------------------------------
+  const fetchAllData = async () => {
+    if (!attendeeId || !certificateId) {
+      return
+    }
+
+    setLoading(true)
+    try {
+      let finalEventId: string | null = eventIdFromLocation || null
+
+      // Paso A: si no tenemos un eventId explícito, intentamos
+      //         ver si certificateId corresponde a un "Certificate"
+      if (!finalEventId) {
+        const certificateRes = await searchCertificates({ _id: certificateId })
+        if (certificateRes?.data?.length) {
+          // Si existe un certificado con ese ID, tomamos su eventId
+          finalEventId = certificateRes.data[0].eventId._id
+        } else {
+          // Si no existe, asumimos que certificateId es el eventId
+          finalEventId = certificateId
+        }
+      }
+
+      // Si por alguna razón seguimos sin eventId, mostramos mensaje y salimos
+      if (!finalEventId) {
+        notification.error({ message: 'No se pudo determinar el eventId' })
+        return
+      }
+
+      // --------------------------------------------------------
+      //   2) Buscar al asistente que cumpla con attended = true
+      //      y coincida con el eventId final
+      // --------------------------------------------------------
+      let resultAttendee
+
+      // Filtro principal para userId (o memberId) + eventId + attended
+      const filtersByUserId = { userId: attendeeId, eventId: finalEventId, attended: true }
+      resultAttendee = await searchAttendees(filtersByUserId)
+
+      // Si no se encontró por userId, intentamos por memberId
+      if (!resultAttendee || resultAttendee.message === 'No se encontraron asistentes') {
+        const filtersByMemberId = { memberId: attendeeId, eventId: finalEventId, attended: true }
+        resultAttendee = await searchAttendees(filtersByMemberId)
+      }
+
+      // Si no hay resultados, notificamos
+      if (!resultAttendee || resultAttendee.message === 'No se encontraron asistentes') {
+        notification.success({ message: 'No se encontró el usuario en este evento' })
+        return
+      }
+
+      // Revisamos a los asistentes que devuelva
+      const allAttendees = resultAttendee.data.items || []
+
+      // Filtramos aquellos que coincidan con finalEventId
+      const matchingAttendees = allAttendees.filter(
+        (item: Attendee) => item.eventId._id === finalEventId,
+      )
+
+      if (matchingAttendees.length === 0) {
+        notification.success({ message: 'No se encontró el usuario en este evento' })
+        return
+      }
+
+      const foundAttendee = matchingAttendees[0]
+
+      // Actualizamos los datos del asistente
+      const updatedAttendeeData = {
+        ...foundAttendee,
+        memberId: {
+          ...foundAttendee.memberId,
+          properties: {
+            ...foundAttendee.memberId.properties,
+            certificationHours: foundAttendee.certificationHours,
+            typeAttendee: foundAttendee.typeAttendee,
+          },
+        },
+      }
+      setAttendee(updatedAttendeeData)
+
+      // --------------------------------------------------------
+      //   3) Cargar el certificado (o certificados) del evento
+      // --------------------------------------------------------
+      const filtersByEventId = { eventId: updatedAttendeeData.eventId._id }
+      const certificateData = await searchCertificates(filtersByEventId)
+      setCertificateElements(certificateData.data[0]?.elements || [])
+    } catch (error) {
+      notification.error({ message: 'Error al obtener los datos' })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Se dispara cada vez que cambien los params o location.state
+  useEffect(() => {
+    fetchAllData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [attendeeId, certificateId, eventIdFromLocation])
+
+  // -------------------------------------------
+  // Lógica para renderizar en el canvas + descargar
+  // -------------------------------------------
   const appendTextObject = useCanvasObjects((state) => state.appendTextObject)
   const appendAttributeObject = useCanvasObjects((state) => state.appendAttributeObject)
   const appendImageObject = useCanvasObjects((state) => state.appendImageObject)
 
-  const location = useLocation()
-  const { eventId } = location.state || {}
-
-  // Obtener datos del usuario y del certificado
-  useEffect(() => {
-    const fetchUserCertificates = async () => {
-      setLoading(true)
-
-      try {
-        let resultAttendee
-
-        // Intentar buscar por userId
-        const filtersByUserId = { userId: attendeeId, eventId }
-        resultAttendee = await searchAttendees(filtersByUserId)
-
-        // Si no se encuentra por userId, buscar por memberId
-        if (!resultAttendee || resultAttendee.message === 'No se encontraron asistentes') {
-          const filtersByMemberId = { memberId: attendeeId, eventId }
-          resultAttendee = await searchAttendees(filtersByMemberId)
-        }
-
-        // Si no se encontró ningún asistente después de ambas búsquedas
-        if (!resultAttendee || resultAttendee.message === 'No se encontraron asistentes') {
-          notification.success({ message: 'No se encontró el usuario' })
-          return
-        }
-
-        const attendee = resultAttendee.data.items[0]
-
-        // Clonamos el objeto para evitar mutaciones directas
-        const updatedAttendeeData = {
-          ...attendee,
-          memberId: {
-            ...attendee.memberId,
-            properties: {
-              ...attendee.memberId.properties,
-              certificationHours: attendee.certificationHours,
-              typeAttendee: attendee.typeAttendee,
-            },
-          },
-        }
-
-        setAttendee(updatedAttendeeData)
-
-        // Buscar certificados asociados al evento
-        if (updatedAttendeeData) {
-          const filtersByEventId = { eventId: attendee.eventId._id }
-          console.log(attendee.eventId._id)
-          const certificateData = await searchCertificates(filtersByEventId)
-
-          setCertificateElements(certificateData.data[0]?.elements || [])
-        }
-      } catch (error) {
-        notification.error({ message: 'Error al obtener los datos' })
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    if (attendeeId && certificateId) {
-      fetchUserCertificates()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [attendeeId, certificateId])
-
-  // Insertar imagen en el canvas
   const pushImageObject = useCallback(
     async ({
       imageUrl,
@@ -127,7 +174,6 @@ const GenerateCertificate: FC = (): JSX.Element => {
     [appendImageObject],
   )
 
-  // Common image loader and appender
   const commonPushImageObject = useCallback(
     async (element: CanvasObject, url: string) => {
       const imageElement = await getImageElementFromUrl(url)
@@ -136,73 +182,39 @@ const GenerateCertificate: FC = (): JSX.Element => {
     [pushImageObject],
   )
 
-  // Función para renderizar el certificado
   const handleRenderCertificate = useCallback(async () => {
     for (const element of certificateElements) {
       switch (element.type) {
         case 'text':
-          appendTextObject({
-            id: element.id,
-            x: element.x,
-            y: element.y,
-            width: element.width,
-            height: element.height,
-            text: element.text,
-            fontColorHex: element.fontColorHex,
-            fontSize: element.fontSize,
-            fontFamily: element.fontFamily,
-            fontStyle: element.fontStyle,
-            fontWeight: element.fontWeight,
-            fontVariant: element.fontVariant,
-            textAlignHorizontal: element.textAlignHorizontal,
-            textAlignVertical: element.textAlignVertical,
-            textJustify: element.textJustify,
-            opacity: element.opacity,
-            fontLineHeightRatio: element.fontLineHeightRatio,
-          })
+          appendTextObject({ ...element })
           break
         case 'attribute':
-          element.text = String(attendee?.memberId?.properties[element.text || ''] as string) || ''
-          appendAttributeObject({
-            id: element.id,
-            x: element.x,
-            y: element.y,
-            width: element.width,
-            height: element.height,
-            text: element.text,
-            opacity: element.opacity || 100,
-            fontColorHex: element.fontColorHex || '#000000',
-            fontSize: element.fontSize || 16,
-            fontFamily: element.fontFamily || 'Arial',
-            fontStyle: element.fontStyle || 'normal',
-            fontVariant: element.fontVariant || 'normal',
-            fontWeight: element.fontWeight || 'normal',
-            fontLineHeightRatio: element.fontLineHeightRatio || 1.2,
-          })
+          element.text = String(attendee?.memberId?.properties[element.text || ''] ?? '')
+          appendAttributeObject({ ...element })
           break
         case 'image':
-          await commonPushImageObject(element, element.imageUrl || '')
+          if (element.imageUrl) {
+            await commonPushImageObject(element, element.imageUrl)
+          }
           break
         default:
           break
       }
     }
   }, [
+    attendee,
     certificateElements,
     appendTextObject,
     appendAttributeObject,
     commonPushImageObject,
-    attendee,
   ])
 
-  // Renderizar el certificado al cargar los elementos
   useEffect(() => {
     if (certificateElements.length > 0 && attendeeId && certificateId) {
       handleRenderCertificate()
     }
   }, [certificateElements, attendeeId, certificateId, handleRenderCertificate])
 
-  // Descargar el canvas como imagen o PDF
   const downloadCanvas = (type: 'png' | 'jpg' | 'pdf') => {
     const canvas = document.getElementById(CANVAS_PREVIEW_UNIQUE_ID) as HTMLCanvasElement
     const image = canvas.toDataURL(`image/${type}`)
