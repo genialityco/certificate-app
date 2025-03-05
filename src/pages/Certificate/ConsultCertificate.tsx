@@ -1,3 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+/* eslint-disable react-hooks/exhaustive-deps */
 import { FC, useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 
@@ -22,7 +25,6 @@ import notification from '@/utils/notification'
 
 const ConsultCertificate: FC = (): JSX.Element => {
   const [inputValue, setInputValue] = useState<string>('')
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [searchResults, setSearchResults] = useState<any[]>([])
   const [eventData, setEventData] = useState<MyEvent | null>(null)
   const [loading, setLoading] = useState(false)
@@ -36,7 +38,6 @@ const ConsultCertificate: FC = (): JSX.Element => {
 
   useEffect(() => {
     if (eventId) fetchEventData()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId])
 
   const fetchEventData = async () => {
@@ -55,9 +56,13 @@ const ConsultCertificate: FC = (): JSX.Element => {
     }
 
     const isNumeric = /^\d+$/.test(value)
+    const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
+
     const filters = isNumeric
       ? { 'properties.idNumber': value, organizationId: eventData?.organizationId }
-      : { 'properties.fullName': value, organizationId: eventData?.organizationId }
+      : isEmail
+        ? { 'properties.email': value, organizationId: eventData?.organizationId }
+        : { 'properties.fullName': value, organizationId: eventData?.organizationId }
 
     setLoading(true)
 
@@ -72,16 +77,16 @@ const ConsultCertificate: FC = (): JSX.Element => {
 
       setSearchResults(memberData.data.items)
     } catch (error) {
-      notification.error({ message: 'Error al buscar los datos.' })
+      // notification.error({ message: 'Error al buscar los datos.' })
     } finally {
       setLoading(false)
     }
-  }, 300) // Debounce de 300ms
+  }, 300)
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value
     setInputValue(value)
-    handleSearch(value) // Dispara la búsqueda con debounce
+    handleSearch(value)
   }
 
   const handleResultClick = async (memberId: string) => {
@@ -106,6 +111,7 @@ const ConsultCertificate: FC = (): JSX.Element => {
   }
 
   if (!eventData) return <Text>Cargando datos del evento...</Text>
+
   return (
     <Container
       style={{
@@ -137,11 +143,12 @@ const ConsultCertificate: FC = (): JSX.Element => {
 
         <Card withBorder shadow="sm" mt="xl" padding="lg">
           <Text size="md" mb="md">
-            Ingresa tu número de documento o nombre para buscar tu certificado:
+            Ingresa tu número de documento, nombre completo o correo electrónico para buscar tu
+            certificado:
           </Text>
           <Group style={{ flexDirection: isMobile ? 'column' : 'row' }}>
             <Input
-              placeholder="Número de documento o nombre completo"
+              placeholder="Número de documento, nombre o correo"
               radius="md"
               value={inputValue}
               onChange={handleInputChange}
@@ -174,8 +181,8 @@ const ConsultCertificate: FC = (): JSX.Element => {
                   onClick={() => handleResultClick(result._id)}
                 >
                   <Text>{result.properties.fullName}</Text>
-                  <Text size="xs" color="gray">
-                    Documento: {result.properties.idNumber}
+                  <Text size="xs" c="gray">
+                    Documento: {result.properties.idNumber} | Correo: {result.properties.email}
                   </Text>
                 </Box>
               ))}
