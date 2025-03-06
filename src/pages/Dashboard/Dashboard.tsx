@@ -141,6 +141,7 @@ const Dashboard: FC = (): JSX.Element => {
     const updatedProperties = properties.filter((_, i) => i !== index)
     setProperties(updatedProperties)
   }
+
   const handleUpdateProperties = async () => {
     try {
       // Combina las propiedades existentes con las nuevas
@@ -179,10 +180,17 @@ const Dashboard: FC = (): JSX.Element => {
     }
   }
 
+  const handleGoToOrganizationLanding = (organizationId: string | undefined) => {
+    navigate(`/organization/${organizationId}`)
+  }
+
   return (
     <Container>
       <Group justify="space-between" mt="md">
         <h1>Administrar certificados</h1>
+        <Button onClick={() => handleGoToOrganizationLanding(organizationId)}>
+          Ir a la landing
+        </Button>
         <Button onClick={() => setIsModalOpen(true)} leftSection={<IconPlus />}>
           Crear nuevo certificado
         </Button>
