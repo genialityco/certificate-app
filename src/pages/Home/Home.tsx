@@ -1,10 +1,22 @@
-import { FC } from 'react'
+import { FC, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
-import { Anchor, Box, Container, Flex, Title } from '@mantine/core'
+import { Box, Button, Container, Flex, Text, TextInput, Title } from '@mantine/core'
 
 const Home: FC = (): JSX.Element => {
   const navigate = useNavigate()
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+
+  const handleLogin = () => {
+    const correctPassword = 'admin123'
+
+    if (password === correctPassword) {
+      navigate('/dashboard/organizations')
+    } else {
+      setError('Contraseña incorrecta. Inténtalo de nuevo.')
+    }
+  }
 
   return (
     <Container
@@ -16,10 +28,27 @@ const Home: FC = (): JSX.Element => {
         backgroundColor: '#242424',
       }}
     >
-      <Flex display="flex" direction="column" justify="center" align="center" h="100%" gap="lg">
+      <Flex direction="column" justify="center" align="center" h="100%" gap="lg">
         <Title order={1}>Gestor de certificados</Title>
-        <Box>
-          <Anchor onClick={() => navigate('/dashboard/organizations')}>Ir a la dashboard</Anchor>
+
+        <Box style={{ width: '300px' }}>
+          <TextInput
+            label="Contraseña"
+            placeholder="Ingresa la contraseña"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.currentTarget.value)}
+            error={error}
+          />
+          {error && (
+            <Text color="red" size="sm" mt="xs">
+              {error}
+            </Text>
+          )}
+
+          <Button fullWidth mt="md" onClick={handleLogin}>
+            Acceder
+          </Button>
         </Box>
       </Flex>
     </Container>
