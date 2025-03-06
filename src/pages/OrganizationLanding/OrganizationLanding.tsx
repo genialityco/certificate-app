@@ -129,7 +129,7 @@ const OrganizationLanding: FC = () => {
       </div>
 
       {/* Contenido principal */}
-      <Container size="sm" style={{ marginTop: 80 }}>
+      <Container size="sm" style={{ marginTop: 180 }}>
         <Center>
           <Title order={2}>Busca tu Certificado</Title>
         </Center>
