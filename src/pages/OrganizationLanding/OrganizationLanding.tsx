@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { FC, useState } from 'react'
+import { FC, useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 
-// import { useNavigate } from 'react-router-dom'
 import {
   Box,
   Button,
@@ -17,48 +17,36 @@ import {
 import { IconSearch } from '@tabler/icons-react'
 import { debounce } from 'lodash'
 
-import { searchAttendees } from '@/services/api/attendeeService'
 import { searchMembers } from '@/services/api/memberService'
-import notification from '@/utils/notification'
 
 const OrganizationLanding: FC = () => {
   const [attended, setAttended] = useState('')
   const [membersResults, setMembersResults] = useState<any[]>([])
-  const [attendeesResults, setAttendeesResults] = useState<any[]>([])
   const [searchError, setSearchError] = useState('')
   const [isSearching, setIsSearching] = useState(false)
+  const [countdown, setCountdown] = useState(5)
 
-  // const navigate = useNavigate()
+  const navigate = useNavigate()
 
-  const handleMemberClick = async (memberId: string) => {
-    try {
-      setIsSearching(true)
-      setAttendeesResults([])
+  useEffect(() => {
+    if (membersResults.length === 1) {
+      const interval = setInterval(() => {
+        setCountdown((prev) => prev - 1)
+      }, 1000)
 
-      const filtersAttendee = { memberId }
-      const attendeeData = await searchAttendees(filtersAttendee)
-      const attendees = attendeeData?.data?.items ?? []
-
-      if (attendees.length === 0) {
-        notification.error({
-          message: 'No se encontraron certificados para este miembro.',
-        })
-      } else {
-        setAttendeesResults(attendees)
+      if (countdown === 0) {
+        navigate(`/user-detail/${membersResults[0]._id}`)
       }
-    } catch (error) {
-      notification.error({ message: 'Error al consultar certificados de este miembro.' })
-    } finally {
-      setIsSearching(false)
+
+      return () => clearInterval(interval)
     }
-  }
+  }, [countdown, membersResults, navigate])
 
   const handleSearch = debounce(async () => {
     try {
       setIsSearching(true)
       setSearchError('')
       setMembersResults([])
-      setAttendeesResults([])
 
       const isNumeric = /^\d+$/.test(attended)
       const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(attended)
@@ -73,14 +61,12 @@ const OrganizationLanding: FC = () => {
       const items = memberData?.data?.items ?? []
 
       if (items.length === 0) {
-        setSearchError('No se encontró ningún miembro con esos criterios.')
-      } else if (items.length === 1) {
-        // Si solo hay un resultado, lo seleccionamos automáticamente:
-        setMembersResults(items)
-        handleMemberClick(items[0]._id)
+        setSearchError('No se encontró ningún registro.')
       } else {
-        // Si hay más de uno, mostramos la lista para que hagan clic
         setMembersResults(items)
+        if (items.length === 1) {
+          setCountdown(3)
+        }
       }
     } catch (error) {
       setSearchError('Ha ocurrido un error al buscar miembros.')
@@ -89,17 +75,8 @@ const OrganizationLanding: FC = () => {
     }
   }, 300)
 
-  const navigateToCertificateDetail = (attendee: any) => {
-    const userId = attendee?.userId?._id || attendee.memberId
-    const certificateId = attendee.eventId._id
-    const url = `/certificate/${certificateId}/${userId}`
-
-    window.open(url, '_blank')
-  }
-
   return (
     <>
-      {/* Header fijo en la parte superior */}
       <div
         style={{
           width: '100%',
@@ -128,7 +105,6 @@ const OrganizationLanding: FC = () => {
         </Container>
       </div>
 
-      {/* Contenido principal */}
       <Container size="sm" style={{ marginTop: 180 }}>
         <Center>
           <Title order={2}>Busca tu Certificado</Title>
@@ -165,6 +141,12 @@ const OrganizationLanding: FC = () => {
           </Center>
         )}
 
+        {membersResults.length === 1 && (
+          <Center mt="xl">
+            <Text>Redirigiendo en {countdown} segundos...</Text>
+          </Center>
+        )}
+
         {membersResults.length > 1 && (
           <Container mt="xl">
             <Title order={4} mb="sm">
@@ -178,7 +160,7 @@ const OrganizationLanding: FC = () => {
                   shadow="sm"
                   p="lg"
                   mb="md"
-                  onClick={() => handleMemberClick(_id)}
+                  onClick={() => navigate(`/user-detail/${_id}`)}
                   style={{ cursor: 'pointer' }}
                 >
                   <Text size="sm" fw={500}>
@@ -192,35 +174,8 @@ const OrganizationLanding: FC = () => {
             })}
           </Container>
         )}
-
-        {attendeesResults.length > 0 && (
-          <Container mt="xl">
-            <Title order={4} mb="sm">
-              Certificados disponibles (haz clic para ver el detalle):
-            </Title>
-            {attendeesResults.map((att) => (
-              <Card
-                key={att._id}
-                shadow="sm"
-                p="lg"
-                mb="md"
-                onClick={() => navigateToCertificateDetail(att)}
-                style={{ cursor: 'pointer' }}
-              >
-                <Text>{att.eventId.name}</Text>
-                <Text size="sm" fw={500}>
-                  {att.memberId.properties?.fullName ?? 'Asistente sin nombre'}
-                </Text>
-                <Text size="xs" color="dimmed">
-                  Correo: {att.memberId.properties?.email}
-                </Text>
-              </Card>
-            ))}
-          </Container>
-        )}
       </Container>
 
-      {/* Footer */}
       <footer
         style={{
           backgroundColor: '#f8f9fa',
@@ -230,9 +185,7 @@ const OrganizationLanding: FC = () => {
         }}
       >
         <Container size="xl">
-          {/* Datos de contacto */}
           <Flex justify="space-around">
-            {/* Líneas de atención móviles */}
             <Box>
               <Title order={5} mb="xs">
                 Líneas de atención móviles
@@ -243,7 +196,6 @@ const OrganizationLanding: FC = () => {
               <Text size="sm">Contabilidad: 315 359 9597</Text>
             </Box>
 
-            {/* Información de contacto */}
             <Box>
               <Title order={5} mb="xs">
                 Información de contacto
@@ -256,7 +208,6 @@ const OrganizationLanding: FC = () => {
             </Box>
           </Flex>
 
-          {/* Logo y crédito de Geniality en la parte inferior */}
           <Center mt="lg">
             <Flex align="center" gap="5px">
               <img

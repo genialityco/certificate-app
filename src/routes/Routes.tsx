@@ -41,7 +41,7 @@ const RouterStack = createBrowserRouter(
       <Route
         path="/dashboard/organization/:organizationId/events"
         lazy={async () => {
-          const { Dashboard } = await import('@/pages/Dashboard')
+          const { Dashboard } = await import('@/pages/Dashboard/Dashboard')
           return {
             Component: Dashboard,
           }
@@ -89,6 +89,15 @@ const RouterStack = createBrowserRouter(
           const { OrganizationLanding } = await import('@/pages/OrganizationLanding')
           return {
             Component: OrganizationLanding,
+          }
+        }}
+      />
+      <Route
+        path="/user-detail/:id"
+        lazy={async () => {
+          const { UserDetail } = await import('@/pages/OrganizationLanding/UserDetail')
+          return {
+            Component: UserDetail,
           }
         }}
       />
