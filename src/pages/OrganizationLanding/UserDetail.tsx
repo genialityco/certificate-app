@@ -9,6 +9,7 @@ import {
   Center,
   Container,
   Divider,
+  Flex,
   Group,
   Loader,
   Text,
@@ -99,18 +100,43 @@ const UserDetail: FC = () => {
             certificates.map((cert) => (
               <Card
                 key={cert._id}
-                shadow="sm"
+                shadow="lg"
                 p="lg"
                 mt="md"
                 radius="md"
                 withBorder
-                style={{ cursor: 'pointer' }}
+                style={{
+                  background: 'linear-gradient(135deg, #6DD5FA 0%, #FF758C 100%)',
+                  color: 'white',
+                  cursor: 'pointer',
+                  transition: 'transform 0.2s ease-in-out',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.02)')}
+                onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
                 onClick={() => window.open(`/certificate/${cert.eventId._id}/${id}`, '_blank')}
               >
-                <Text fw={500}>{cert.eventId.name}</Text>
-                <Text size="sm" color="dimmed">
+                <Flex align="center" justify="space-between">
+                  <Flex align="center" gap="10px">
+                    <IconCertificate size={32} color="white" />
+                    <Text fw={600} size="lg">
+                      {cert.eventId.name}
+                    </Text>
+                  </Flex>
+                </Flex>
+
+                <Text size="sm" mt="xs" color="white">
                   Horas: {cert.certificationHours}
                 </Text>
+
+                <Button
+                  variant="white"
+                  fullWidth
+                  mt="md"
+                  radius="md"
+                  style={{ color: '#FF758C', fontWeight: 'bold' }}
+                >
+                  Ver certificado
+                </Button>
               </Card>
             ))
           ) : (

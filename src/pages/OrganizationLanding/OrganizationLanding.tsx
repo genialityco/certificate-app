@@ -143,7 +143,7 @@ const OrganizationLanding: FC = () => {
 
         {membersResults.length === 1 && (
           <Center mt="xl">
-            <Text>Redirigiendo en {countdown} segundos...</Text>
+            <Text>Consultando información, serás redirigido en {countdown} segundos...</Text>
           </Center>
         )}
 
@@ -209,16 +209,23 @@ const OrganizationLanding: FC = () => {
           </Flex>
 
           <Center mt="lg">
-            <Flex align="center" gap="5px">
-              <img
-                src="https://ik.imagekit.io/6cx9tc1kx/LOGOS_GEN.iality_web-15.svg?updatedAt=1727378741215"
-                alt="Geniality"
-                style={{ height: 20 }}
-              />
-              <Text size="sm" c="dimmed">
-                Geniality
-              </Text>
-            </Flex>
+            <a
+              href="https://geniality.com.co/"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ textDecoration: 'none' }}
+            >
+              <Flex align="center" gap="5px">
+                <img
+                  src="https://ik.imagekit.io/6cx9tc1kx/LOGOS_GEN.iality_web-15.svg?updatedAt=1727378741215"
+                  alt="Geniality"
+                  style={{ height: 20 }}
+                />
+                <Text size="sm" c="dimmed">
+                  Geniality
+                </Text>
+              </Flex>
+            </a>
           </Center>
         </Container>
       </footer>
