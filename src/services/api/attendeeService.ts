@@ -88,3 +88,17 @@ export const registerAttendee = async (attendeeData: Partial<Attendee>) => {
     throw error
   }
 }
+
+// Incrementar certificateDownloads por userId o memberId
+export const incrementCertificateDownload = async (payload: {
+  userId?: string
+  memberId?: string
+}) => {
+  try {
+    const response = await api.put('/attendees/certificate-download', payload)
+    return response.data
+  } catch (error) {
+    console.error('Error incrementing certificateDownloads:', error)
+    throw error
+  }
+}

@@ -8,7 +8,7 @@ import jsPDF from 'jspdf'
 import CanvasPreview from '@/components/CanvasPreview'
 import { CANVAS_PREVIEW_UNIQUE_ID } from '@/config/globalElementIds'
 import { CanvasObject } from '@/config/types'
-import { searchAttendees } from '@/services/api/attendeeService'
+import { incrementCertificateDownload, searchAttendees } from '@/services/api/attendeeService'
 import { searchCertificates } from '@/services/api/certificateService'
 import useCanvasObjects from '@/store/useCanvasObjects'
 import generateUniqueId from '@/utils/generateUniqueId'
@@ -41,6 +41,8 @@ const GenerateCertificate: FC = (): JSX.Element => {
   // Por ejemplo:
   const location = useLocation()
   const { eventId: eventIdFromLocation } = location.state || {}
+
+  const [attendeeIdType, setAttendeeIdType] = useState<'userId' | 'memberId' | null>('userId')
 
   // --------------------------------------------------------
   //   1) Determinar si certificateId es un evento o un certificado
@@ -87,6 +89,7 @@ const GenerateCertificate: FC = (): JSX.Element => {
       if (!resultAttendee || resultAttendee.message === 'No se encontraron asistentes') {
         const filtersByMemberId = { memberId: attendeeId, eventId: finalEventId, attended: true }
         resultAttendee = await searchAttendees(filtersByMemberId)
+        setAttendeeIdType('memberId')
       }
 
       // Si no hay resultados, notificamos
@@ -215,23 +218,33 @@ const GenerateCertificate: FC = (): JSX.Element => {
     }
   }, [certificateElements, attendeeId, certificateId, handleRenderCertificate])
 
-  const downloadCanvas = (type: 'png' | 'jpg' | 'pdf') => {
-    const canvas = document.getElementById(CANVAS_PREVIEW_UNIQUE_ID) as HTMLCanvasElement
-    const image = canvas.toDataURL(`image/${type}`)
+  const downloadCanvas = async (type: 'png' | 'jpg' | 'pdf') => {
+    try {
+      // 1. Actualizar certificateDownloads (y attended si aplica)
+      if (attendee && attendeeIdType) {
+        await incrementCertificateDownload({ [attendeeIdType]: attendeeId })
+      }
 
-    if (type === 'pdf') {
-      const pdf = new jsPDF({
-        orientation: 'landscape',
-        unit: 'px',
-        format: [canvas.width, canvas.height],
-      })
-      pdf.addImage(image, 'JPEG', 0, 0, canvas.width, canvas.height)
-      pdf.save(`${generateUniqueId()}.pdf`)
-    } else {
-      const link = document.createElement('a')
-      link.download = `${generateUniqueId()}.${type}`
-      link.href = image
-      link.click()
+      // 2. Continuar con la descarga del canvas
+      const canvas = document.getElementById(CANVAS_PREVIEW_UNIQUE_ID) as HTMLCanvasElement
+      const image = canvas.toDataURL(`image/${type}`)
+
+      if (type === 'pdf') {
+        const pdf = new jsPDF({
+          orientation: 'landscape',
+          unit: 'px',
+          format: [canvas.width, canvas.height],
+        })
+        pdf.addImage(image, 'JPEG', 0, 0, canvas.width, canvas.height)
+        pdf.save(`${generateUniqueId()}.pdf`)
+      } else {
+        const link = document.createElement('a')
+        link.download = `${generateUniqueId()}.${type}`
+        link.href = image
+        link.click()
+      }
+    } catch (error) {
+      notification.error({ message: 'Error al registrar la descarga o descargar el certificado' })
     }
   }
 
@@ -255,7 +268,7 @@ const GenerateCertificate: FC = (): JSX.Element => {
             key={format}
             size="xs"
             variant="default"
-            onClick={() => downloadCanvas(format as 'png' | 'jpg' | 'pdf')}
+            onClick={async () => await downloadCanvas(format as 'png' | 'jpg' | 'pdf')}
             leftSection={<IconDownload />}
           >
             {format.toUpperCase()}
