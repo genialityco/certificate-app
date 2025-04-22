@@ -240,6 +240,9 @@ const Dashboard: FC = (): JSX.Element => {
               <Button mt="md" fullWidth onClick={() => navigate(`/event/users/${event._id}`)}>
                 Gestionar asistentes
               </Button>
+              <Button mt="md" fullWidth onClick={() => navigate(`/event/analytics/${event._id}`)}>
+                Informe de descargas
+              </Button>
               <ActionIcon
                 c="red"
                 variant="white"

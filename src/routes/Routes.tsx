@@ -66,6 +66,17 @@ const RouterStack = createBrowserRouter(
         }}
       />
       <Route
+        path="/event/analytics/:eventId"
+        lazy={async () => {
+          const { CertificateDownloadsTable } = await import(
+            '@/pages/Dashboard/CertificateDownloadsTable'
+          )
+          return {
+            Component: CertificateDownloadsTable,
+          }
+        }}
+      />
+      <Route
         path="/event/:eventId/certificate/:certificateId"
         lazy={async () => {
           const { ConsultCertificate } = await import('@/pages/Certificate')
