@@ -24,7 +24,7 @@ const OrganizationLanding: FC = () => {
   const [membersResults, setMembersResults] = useState<any[]>([])
   const [searchError, setSearchError] = useState('')
   const [isSearching, setIsSearching] = useState(false)
-  const [countdown, setCountdown] = useState(5)
+  const [countdown, setCountdown] = useState(100)
 
   const navigate = useNavigate()
 
@@ -57,7 +57,7 @@ const OrganizationLanding: FC = () => {
           ? { 'properties.email': attended }
           : { 'properties.fullName': attended }
 
-      const memberData = await searchMembers(filters, { page: 1, limit: 5 })
+      const memberData = await searchMembers(filters, { page: 1, limit: 100 })
       const items = memberData?.data?.items ?? []
 
       if (items.length === 0) {
