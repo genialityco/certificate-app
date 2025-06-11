@@ -1,5 +1,6 @@
 <!doctype html>
 <html lang="en">
+
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width" />
@@ -9,15 +10,23 @@
 
     <title>Gen.Cert</title>
 
-    <meta
-      name="description"
-      content="Certificados sin complicaciones, deja de enviar certificados uno a uno tu tiempo vale. Eso puede tardar semanas."
-    />
+    <meta name="description"
+      content="Certificados sin complicaciones, deja de enviar certificados uno a uno tu tiempo vale. Eso puede tardar semanas." />
     <meta name="theme-color" content="#242424" />
 
     <link rel="icon" type="image/svg+xml" href="/icons/LOGOS_GEN.iality_web-15.svg" />
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
     <link rel="icon" type="image/webp" href="/favicon.webp" />
+
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-1ZQW8YQT2J"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag() { dataLayer.push(arguments); }
+      gtag('js', new Date());
+
+      gtag('config', 'G-1ZQW8YQT2J');
+    </script>
   </head>
 
   <body>
@@ -27,8 +36,9 @@
     <script type="module">
       /* disables react devtools */
       if (!window.location.port && typeof window.__REACT_DEVTOOLS_GLOBAL_HOOK__ === 'object') {
-        window.__REACT_DEVTOOLS_GLOBAL_HOOK__.inject = function () {}
+        window.__REACT_DEVTOOLS_GLOBAL_HOOK__.inject = function () { }
       }
     </script>
   </body>
+
 </html>
