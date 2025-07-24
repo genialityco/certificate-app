@@ -120,10 +120,7 @@ const DataTable: React.FC = () => {
       if (response.status === 'success') {
         setUsers(response.data.items as EventUser[])
         setTotalPages(response.data.totalPages)
-
-        if (response.data.currentPage !== page) {
-          setPage(response.data.currentPage)
-        }
+        // No modifiques el page aquí
       } else if (
         response.status === 'error' &&
         response.message === 'No se encontraron asistentes'
@@ -283,18 +280,28 @@ const DataTable: React.FC = () => {
     if (!file) return
 
     setLoading(true)
-    setUploadProgress(0) // Inicializa la barra de progreso en 0
+    setUploadProgress(0)
+
+    function normalizeHeader(str: string) {
+      return (str || '')
+        .toLowerCase()
+        .replace(/[\s_]+/g, '')
+        .replace(/[áäàâã]/g, 'a')
+        .replace(/[éëèê]/g, 'e')
+        .replace(/[íïìî]/g, 'i')
+        .replace(/[óöòôõ]/g, 'o')
+        .replace(/[úüùû]/g, 'u')
+        .replace(/[ñ]/g, 'n')
+    }
 
     try {
-      // Leer el archivo Excel
       const data = await file.arrayBuffer()
       const workbook = XLSX.read(data, { type: 'array' })
       const sheetName = workbook.SheetNames[0]
-      const sheet = workbook.Sheets[sheetName]
-      const jsonData = XLSX.utils.sheet_to_json(sheet)
+      const sheet = XLSX.utils.sheet_to_json<XLSX.WorkSheet>(workbook.Sheets[sheetName])
+      const jsonData = Array.isArray(sheet) ? sheet : []
 
-      // Procesar en lotes (ej: lotes de 100 registros)
-      const batchSize = 100 // Tamaño del lote
+      const batchSize = 100
       const batches = []
       for (let i = 0; i < jsonData.length; i += batchSize) {
         batches.push(jsonData.slice(i, i + batchSize))
@@ -304,83 +311,72 @@ const DataTable: React.FC = () => {
 
       for (const [index, batch] of batches.entries()) {
         const formattedData = batch.map((row: any) => {
-          const properties = propertyHeadersApi.reduce(
-            (acc, header) => {
-              acc[header.fieldName] = row[header.label] || ''
-              return acc
-            },
-            {} as Record<string, string>,
-          )
+          const properties = propertyHeadersApi.reduce((acc: Record<string, string>, header) => {
+            const headerLabelNorm = normalizeHeader(header.label)
+            const excelKey = Object.keys(row).find((k) => normalizeHeader(k) === headerLabelNorm)
+            acc[header.fieldName] =
+              excelKey && row[excelKey] !== undefined && row[excelKey] !== null
+                ? String(row[excelKey])
+                : ''
+            return acc
+          }, {})
 
           return {
             eventId: eventId || '',
             properties: {
               ...properties,
-              idNumber: String(properties.idNumber || ''), // Asegurar que idNumber sea string
+              idNumber: String(properties.idNumber || ''),
               certificationHours: properties.certificationHours
                 ? Number(properties.certificationHours)
-                : undefined, // Convertir si existe
-              typeAttendee: properties.typeAttendee || undefined, // Si existe, incluirlo
+                : undefined,
+              typeAttendee: properties.typeAttendee || undefined,
             },
             attended: true,
-            isIncomplete: !properties.idNumber, // Marcar si es usuario con información incompleta
+            isIncomplete: !properties.idNumber,
           }
         })
 
-        // Filtrar usuarios con información incompleta
-        const validUsers = formattedData.filter((user) => {
-          if (!user.properties.idNumber) {
-            return false // No incluir este usuario en la carga
-          }
-          return true
-        })
+        const validUsers = formattedData.filter((user) => !!user.properties.idNumber)
 
-        // Procesa cada usuario en paralelo con validación previa
         await Promise.all(
           validUsers.map(async (user) => {
             const { idNumber, certificationHours, typeAttendee } = user.properties
 
-            // Buscar si ya existe un miembro con el idNumber (cédula)
+            // Buscar si ya existe un miembro con el idNumber
             const existingMembers = await searchMembers(
               { 'properties.idNumber': idNumber },
               { page: 1, limit: 1 },
             )
 
+            let memberId = null
             if (existingMembers?.data?.items.length > 0) {
-              // Si ya existe, obtener el memberId
-              const existingMember = existingMembers?.data?.items[0] // Tomamos el primer resultado
-
-              // Solo creamos el attendee con el memberId existente y los datos adicionales
-              await retryRequest(async () => {
-                await createAttendee({
-                  eventId: user.eventId,
-                  memberId: existingMember._id,
-                  attended: user.attended,
-                  certificationHours, // Si existe, se envía
-                  typeAttendee, // Si existe, se envía
-                })
-              }, 3)
+              // Actualiza member
+              const existingMember = existingMembers.data.items[0]
+              await updateMember(existingMember._id, {
+                properties: user.properties,
+                organizationId: event?.organizationId || '',
+              })
+              memberId = existingMember._id
             } else {
-              // Si no existe, lo creamos y luego creamos el attendee
-              await retryRequest(async () => {
-                const memberResponse = await createMember({
-                  properties: user.properties,
-                  organizationId: event?.organizationId || '',
-                })
-
-                await createAttendee({
-                  eventId: user.eventId,
-                  memberId: memberResponse.data._id,
-                  attended: user.attended,
-                  certificationHours, // Si existe, se envía
-                  typeAttendee, // Si existe, se envía
-                })
-              }, 3)
+              // Crea member
+              const memberResponse = await createMember({
+                properties: user.properties,
+                organizationId: event?.organizationId || '',
+              })
+              memberId = memberResponse.data?._id || memberResponse._id
             }
+
+            // Crea attendee
+            await createAttendee({
+              eventId: user.eventId,
+              memberId: memberId,
+              attended: user.attended,
+              certificationHours,
+              typeAttendee,
+            })
           }),
         )
 
-        // Actualizar progreso
         const progress = Math.round(((index + 1) / totalBatches) * 100)
         setUploadProgress(progress)
       }
@@ -392,21 +388,7 @@ const DataTable: React.FC = () => {
       notification.error({ message: 'Error al procesar el archivo' })
     } finally {
       setLoading(false)
-      setUploadProgress(0) // Reiniciar progreso
-    }
-  }
-
-  // Función para reintentar solicitudes fallidas
-  const retryRequest = async (fn: () => Promise<void>, retries = 3) => {
-    let attempts = 0
-    while (attempts < retries) {
-      try {
-        await fn()
-        return // Sale si la solicitud tiene éxito
-      } catch (error) {
-        attempts++
-        if (attempts === retries) throw error // Lanza error después de agotar reintentos
-      }
+      setUploadProgress(0)
     }
   }
 

@@ -7,7 +7,7 @@ import axios from 'axios'
 
 const api = axios.create({
   baseURL: 'https://lobster-app-uy9hx.ondigitalocean.app',
-  timeout: 10000,
+  timeout: 60000,
   headers: {
     'Content-Type': 'application/json',
   },
