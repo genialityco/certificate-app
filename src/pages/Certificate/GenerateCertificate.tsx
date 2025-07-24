@@ -1,7 +1,7 @@
 import { FC, useCallback, useEffect, useState } from 'react'
 import { useLocation, useParams } from 'react-router-dom'
 
-import { Button } from '@mantine/core'
+import { Button, Loader } from '@mantine/core'
 import { IconDownload } from '@tabler/icons-react'
 import jsPDF from 'jspdf'
 
@@ -287,7 +287,7 @@ const GenerateCertificate: FC = (): JSX.Element => {
           border: '1px solid rgb(55 55 55 / 20%)',
         }}
       >
-        {!loading && <CanvasPreview />}
+        {loading ? <Loader size="xl" color="blue" /> : <CanvasPreview />}
       </div>
     </div>
   )
