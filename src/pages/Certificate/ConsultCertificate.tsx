@@ -7,6 +7,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import {
   ActionIcon,
   Box,
+  Button,
   Card,
   Container,
   Group,
@@ -15,7 +16,7 @@ import {
   useMantineTheme,
 } from '@mantine/core'
 import { useMediaQuery } from '@mantine/hooks'
-import { IconSearch } from '@tabler/icons-react'
+import { IconCertificate, IconSearch } from '@tabler/icons-react'
 import { debounce } from 'lodash'
 
 import { searchAttendees } from '@/services/api/attendeeService'
@@ -168,8 +169,18 @@ const ConsultCertificate: FC = (): JSX.Element => {
               Cargando resultados...
             </Text>
           )}
+
           {searchResults.length > 0 && (
-            <Box mt="md" style={{ backgroundColor: 'white', borderRadius: '8px', padding: '10px' }}>
+            <Box
+              mt="md"
+              style={{
+                backgroundColor: 'white',
+                borderRadius: '8px',
+                padding: '10px',
+                maxWidth: 500, // para que en mobile no se "desborde"
+                margin: '0 auto',
+              }}
+            >
               {searchResults.map((result) => (
                 <Box
                   key={result._id}
@@ -177,13 +188,31 @@ const ConsultCertificate: FC = (): JSX.Element => {
                     padding: '10px',
                     cursor: 'pointer',
                     borderBottom: '1px solid #eee',
+                    display: 'flex',
+                    flexDirection: isMobile ? 'column' : 'row',
+                    alignItems: isMobile ? 'flex-start' : 'center',
+                    gap: '1rem',
                   }}
                   onClick={() => handleResultClick(result._id)}
                 >
-                  <Text>{result.properties.fullName}</Text>
-                  <Text size="xs" c="gray">
-                    Documento: {result.properties.idNumber} | Correo: {result.properties.email}
-                  </Text>
+                  <Box style={{ flex: 1 }}>
+                    <Text fw={700}>{result.properties.fullName}</Text>
+                    <Text size="xs" c="gray">
+                      Documento: {result.properties.idNumber} | Correo: {result.properties.email}
+                    </Text>
+                  </Box>
+                  <Button
+                    size="xs"
+                    color="blue"
+                    leftSection={<IconCertificate size={16} />}
+                    style={{ minWidth: isMobile ? '100%' : 140 }}
+                    onClick={(e) => {
+                      e.stopPropagation() // Evita doble navegación si hacen click al botón
+                      handleResultClick(result._id)
+                    }}
+                  >
+                    Ver mi certificado
+                  </Button>
                 </Box>
               ))}
             </Box>
