@@ -1,3 +1,4 @@
+/* eslint-disable no-case-declarations */
 import { FC, useCallback, useEffect, useState } from 'react'
 import { useLocation, useParams } from 'react-router-dom'
 
@@ -33,12 +34,12 @@ const GenerateCertificate: FC = (): JSX.Element => {
   const [attendee, setAttendee] = useState<Attendee | null>(null)
   const [certificateElements, setCertificateElements] = useState<CanvasObject[]>([])
   const [loading, setLoading] = useState<boolean>(true)
+  // Nuevo estado para almacenar las dimensiones del canvas
+  const [canvasDimensions, setCanvasDimensions] = useState({ width: 0, height: 0 })
 
   const params = useParams()
   const { attendeeId, certificateId } = params
 
-  // Este eventId podría venir de la ruta, de la ubicación actual, etc.
-  // Por ejemplo:
   const location = useLocation()
   const { eventId: eventIdFromLocation } = location.state || {}
 
@@ -77,7 +78,7 @@ const GenerateCertificate: FC = (): JSX.Element => {
 
       // --------------------------------------------------------
       //   2) Buscar al asistente que cumpla con attended = true
-      //      y coincida con el eventId final
+      //       y coincida con el eventId final
       // --------------------------------------------------------
       let resultAttendee
 
@@ -132,6 +133,14 @@ const GenerateCertificate: FC = (): JSX.Element => {
       // --------------------------------------------------------
       const filtersByEventId = { eventId: updatedAttendeeData.eventId._id }
       const certificateData = await searchCertificates(filtersByEventId)
+
+      // Guardar las dimensiones del certificado en el nuevo estado
+      if (certificateData.data[0]?.size) {
+        setCanvasDimensions(certificateData.data[0].size)
+      } else {
+        // Establecer dimensiones predeterminadas si no se encuentran
+        setCanvasDimensions({ width: 1920, height: 1080 })
+      }
       setCertificateElements(certificateData.data[0]?.elements || [])
     } catch (error) {
       notification.error({ message: 'Error al obtener los datos' })
@@ -186,14 +195,19 @@ const GenerateCertificate: FC = (): JSX.Element => {
   )
 
   const handleRenderCertificate = useCallback(async () => {
+    // Limpiar canvasObjects antes de renderizar nuevos elementos
+    // Esto es crucial para evitar duplicados si se vuelve a llamar
+    useCanvasObjects.getState().resetCanvasObjects()
+
     for (const element of certificateElements) {
       switch (element.type) {
         case 'text':
           appendTextObject({ ...element })
           break
         case 'attribute':
-          element.text = String(attendee?.memberId?.properties[element.text || ''] ?? '')
-          appendAttributeObject({ ...element })
+          // Asegúrate de que `element.text` no sea `null` o `undefined`
+          const attributeText = String(attendee?.memberId?.properties[element.text || ''] ?? '')
+          appendAttributeObject({ ...element, text: attributeText })
           break
         case 'image':
           if (element.imageUrl) {
@@ -213,10 +227,17 @@ const GenerateCertificate: FC = (): JSX.Element => {
   ])
 
   useEffect(() => {
-    if (certificateElements.length > 0 && attendeeId && certificateId) {
+    // Solo renderiza si hay elementos de certificado, attendeeId y certificateId
+    // Y si las dimensiones del canvas ya se han cargado (width > 0 o height > 0)
+    if (
+      certificateElements.length > 0 &&
+      attendeeId &&
+      certificateId &&
+      (canvasDimensions.width > 0 || canvasDimensions.height > 0)
+    ) {
       handleRenderCertificate()
     }
-  }, [certificateElements, attendeeId, certificateId, handleRenderCertificate])
+  }, [certificateElements, attendeeId, certificateId, handleRenderCertificate, canvasDimensions]) // Agregamos canvasDimensions a las dependencias
 
   const downloadCanvas = async (type: 'png' | 'jpg' | 'pdf') => {
     try {
@@ -280,14 +301,18 @@ const GenerateCertificate: FC = (): JSX.Element => {
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
-          width: '100%',
-          maxWidth: '80%',
+          maxWidth: '50%',
           margin: '0 auto',
           paddingBottom: '15px',
           border: '1px solid rgb(55 55 55 / 20%)',
         }}
       >
-        {loading ? <Loader size="xl" color="blue" /> : <CanvasPreview />}
+        {loading ? (
+          <Loader size="xl" color="blue" />
+        ) : (
+          // Pasamos las dimensiones al CanvasPreview
+          <CanvasPreview width={canvasDimensions.width} height={canvasDimensions.height} />
+        )}
       </div>
     </div>
   )

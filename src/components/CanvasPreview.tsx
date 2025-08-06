@@ -9,11 +9,19 @@ import useActionMode from '@/store/useActionMode'
 import useActiveObjectId from '@/store/useActiveObjectId'
 import useCanvasBackgroundColor from '@/store/useCanvasBackgroundColor'
 import useCanvasObjects from '@/store/useCanvasObjects'
-import useCanvasWorkingSize from '@/store/useCanvasWorkingSize'
+// Eliminamos la importación de useCanvasWorkingSize ya que ahora las dimensiones vienen por props
+// import useCanvasWorkingSize from '@/store/useCanvasWorkingSize'
 import useScrollPosition from '@/store/useScrollPosition'
 import useWindowSize from '@/store/useWindowSize'
 
-export default function CanvasPreview() {
+// Definimos los tipos para las props que recibirá CanvasPreview
+type CanvasPreviewProps = {
+  width: number
+  height: number
+}
+
+// El componente ahora acepta 'width' y 'height' como props
+export default function CanvasPreview({ width, height }: CanvasPreviewProps) {
   const [canvasImageSrc, setCanvasImageSrc] = useState<string | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const contextRef = useRef<CanvasRenderingContext2D | null>(null)
@@ -28,7 +36,8 @@ export default function CanvasPreview() {
 
   const canvasObjects = useCanvasObjects((state) => state.canvasObjects)
 
-  const canvasWorkingSize = useCanvasWorkingSize((state) => state.canvasWorkingSize)
+  // Ya no necesitamos esta línea, las dimensiones vienen por props
+  // const canvasWorkingSize = useCanvasWorkingSize((state) => state.canvasWorkingSize)
 
   const actionMode = useActionMode((state) => state.actionMode)
 
@@ -41,32 +50,36 @@ export default function CanvasPreview() {
     if (!context) return
     contextRef.current = context
 
+    // Usamos las props 'width' y 'height' para inicializar el canvas
     canvasInit({
       canvas,
       context,
-      canvasWidth: canvasWorkingSize.width,
-      canvasHeight: canvasWorkingSize.height,
+      canvasWidth: width, // Usamos la prop width
+      canvasHeight: height, // Usamos la prop height
     })
 
     canvasDrawEverything({
       canvas,
       context,
-      canvasWorkingSize,
+      // Creamos un objeto canvasWorkingSize a partir de las props para mantener la compatibilidad con la función
+      canvasWorkingSize: { width, height },
       canvasBackgroundColor,
       canvasObjects,
       activeObjectId,
       actionMode,
-      zoom: 100,
+      zoom: 100, // En el preview, el zoom es fijo a 100%
       scrollPosition,
       windowSize,
     })
 
     setCanvasImageSrc(canvas.toDataURL())
   }, [
+    // Agregamos 'width' y 'height' a las dependencias para que el efecto se re-ejecute si cambian
+    width,
+    height,
     actionMode,
     activeObjectId,
     canvasObjects,
-    canvasWorkingSize,
     canvasBackgroundColor,
     colorScheme,
     scrollPosition,
@@ -88,7 +101,14 @@ export default function CanvasPreview() {
           alt="Download preview"
         />
       )}
-      <canvas style={{ display: 'none' }} id={CANVAS_PREVIEW_UNIQUE_ID} ref={canvasRef}></canvas>
+      {/* El canvas oculto también debe recibir los atributos width y height de las props */}
+      <canvas
+        style={{ display: 'none' }}
+        id={CANVAS_PREVIEW_UNIQUE_ID}
+        ref={canvasRef}
+        width={width} // Atributo width del canvas
+        height={height} // Atributo height del canvas
+      ></canvas>
     </>
   )
 }
