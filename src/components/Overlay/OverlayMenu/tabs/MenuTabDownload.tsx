@@ -86,7 +86,7 @@ export default function MenuTabDownload() {
       <h3>
         Preview<span>{`${canvasWorkingSize.width} x ${canvasWorkingSize.height} px`}</span>
       </h3>
-      <CanvasPreview />
+      <CanvasPreview width={canvasWorkingSize.width} height={canvasWorkingSize.height} />{' '}
       <Checkbox
         size="sm"
         label="Transparent Background"
