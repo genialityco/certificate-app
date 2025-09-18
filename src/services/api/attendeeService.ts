@@ -101,4 +101,15 @@ export const incrementCertificateDownload = async (payload: {
     console.error('Error incrementing certificateDownloads:', error)
     throw error
   }
+
+  
+}
+export const addOrCreateAttendee = async (payload: any) => {
+  try {
+    const response = await api.post('/users/attendees', payload)
+    return response.data
+  } catch (error) {
+    console.error('Error adding or creating attendee:', error)
+    throw error
+  }
 }
