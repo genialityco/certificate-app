@@ -5,7 +5,7 @@ import axios from 'axios'
 // http://192.168.0.16:3000 local red
 // http://localhost:3000 local
 
-const API_URL = 'http://192.168.101.7:3000' 
+const API_URL = 'https://lobster-app-uy9hx.ondigitalocean.app' 
 const api = axios.create({
   baseURL: API_URL,
   timeout: 60000,
