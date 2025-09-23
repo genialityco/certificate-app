@@ -251,7 +251,7 @@ const DataTable: React.FC = () => {
       const updatedData = propertyHeadersApi.reduce(
         (acc, header) => ({
           ...acc,
-          [header.fieldName]: user.memberId.properties[header.fieldName] || '',
+          [header.fieldName]: user?.memberId.properties[header.fieldName] || '',
         }),
         {} as Record<string, string | boolean>,
       )
@@ -510,7 +510,7 @@ const DataTable: React.FC = () => {
         });
         
         await addOrCreateAttendee(formattedData);
-        //console.log("data", formattedData)
+        console.log("data", formattedData)
         const progress = Math.round(((index + 1) / totalBatches) * 100);
         setUploadProgress(progress);
       }
@@ -570,7 +570,7 @@ const DataTable: React.FC = () => {
                   <Table.Tr key={item._id}>
                     {propertyHeadersApi.map((header) => (
                       <Table.Td key={`${item._id}-${header.fieldName}`}>
-                        {item.memberId.properties[header.fieldName] || ''}
+                        {item?.memberId?.properties[header.fieldName] || ''}
                       </Table.Td>
                     ))}
                     <Table.Td>

@@ -83,15 +83,16 @@ const GenerateCertificate: FC = (): JSX.Element => {
       let resultAttendee
 
       // Filtro principal para userId (o memberId) + eventId + attended
-      const filtersByUserId = { userId: attendeeId, eventId: finalEventId, attended: true }
+      const filtersByUserId = { memberId: attendeeId, attended: true }
       resultAttendee = await searchAttendees(filtersByUserId)
-
+      setAttendeeIdType('memberId')
+      console.log("certificate attendee", resultAttendee)
       // Si no se encontró por userId, intentamos por memberId
-      if (!resultAttendee || resultAttendee.message === 'No se encontraron asistentes') {
-        const filtersByMemberId = { memberId: attendeeId, eventId: finalEventId, attended: true }
-        resultAttendee = await searchAttendees(filtersByMemberId)
-        setAttendeeIdType('memberId')
-      }
+      // if (!resultAttendee || resultAttendee.message === 'No se encontraron asistentes') {
+      //   const filtersByMemberId = { memberId: attendeeId, eventId: finalEventId, attended: true }
+      //   resultAttendee = await searchAttendees(filtersByMemberId)
+      //   setAttendeeIdType('memberId')
+      // }
 
       // Si no hay resultados, notificamos
       if (!resultAttendee || resultAttendee.message === 'No se encontraron asistentes') {

@@ -1,5 +1,4 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-
 /* eslint-disable react-hooks/exhaustive-deps */
 import { FC, useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
@@ -21,14 +20,34 @@ import { debounce } from 'lodash'
 
 import { searchAttendees } from '@/services/api/attendeeService'
 import { fetchEventById } from '@/services/api/eventService'
-import { searchMembers } from '@/services/api/memberService'
 import notification from '@/utils/notification'
+
+interface Attendee {
+  _id: string
+  memberId: {
+    _id: string
+    properties: {
+      fullName: string
+      idNumber: string
+      email: string
+    }
+  }
+}
+
+interface MyEvent {
+  _id: string
+  name: string
+  styles: {
+    eventImage: string
+  }
+}
 
 const ConsultCertificate: FC = (): JSX.Element => {
   const [inputValue, setInputValue] = useState<string>('')
-  const [searchResults, setSearchResults] = useState<any[]>([])
+  const [searchResults, setSearchResults] = useState<Attendee[]>([])
   const [eventData, setEventData] = useState<MyEvent | null>(null)
   const [loading, setLoading] = useState(false)
+  const [showFullResults, setShowFullResults] = useState(false)
 
   const params = useParams()
   const navigate = useNavigate()
@@ -50,35 +69,54 @@ const ConsultCertificate: FC = (): JSX.Element => {
     }
   }
 
-  const handleSearch = debounce(async (value: string) => {
+  const handleSearch = debounce(async (value: string, isFromButton = false) => {
     if (!eventId || value.length < 3) {
       setSearchResults([])
+      setShowFullResults(false)
       return
     }
 
     const isNumeric = /^\d+$/.test(value)
     const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
 
-    const filters = isNumeric
-      ? { 'properties.idNumber': value, organizationId: eventData?.organizationId }
-      : isEmail
-        ? { 'properties.email': value, organizationId: eventData?.organizationId }
-        : { 'properties.fullName': value, organizationId: eventData?.organizationId }
+    let filters: any = {}
+    
+    if (isNumeric) {
+      filters = {
+        "filters[0][field]": "memberId.properties.idNumber",
+        "filters[0][operator]": "eq",
+        "filters[0][value]": value,
+      }
+    } else if (isEmail) {
+      filters = {
+        "filters[0][field]": "memberId.properties.email",
+        "filters[0][operator]": "contains",
+        "filters[0][value]": value,
+      }
+    } else {
+      filters = {
+        "filters[0][field]": "memberId.properties.fullName",
+        "filters[0][operator]": "contains",
+        "filters[0][value]": value,
+      }
+    }
 
     setLoading(true)
 
     try {
-      const memberData = await searchMembers(filters, { page: 1, limit: 5 })
-
+      const memberData = await searchAttendees(Object.assign(filters, { eventId: eventId, page: 1, limit: 20 }))
+      //console.log("memberData", memberData.data.items)
       if (!memberData.data.items.length) {
         setSearchResults([])
+        setShowFullResults(false)
         notification.error({ message: `No se encontraron resultados para "${value}"` })
         return
       }
 
       setSearchResults(memberData.data.items)
+      setShowFullResults(isFromButton)
     } catch (error) {
-      // notification.error({ message: 'Error al buscar los datos.' })
+      notification.error({ message: 'Error al buscar los datos.' })
     } finally {
       setLoading(false)
     }
@@ -87,25 +125,20 @@ const ConsultCertificate: FC = (): JSX.Element => {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value
     setInputValue(value)
-    handleSearch(value)
+    setShowFullResults(false)
+    handleSearch(value, false)
   }
 
-  const handleResultClick = async (memberId: string) => {
+  const handleResultClick = async (atendee: any) => {
     try {
-      const filtersAttendee = { memberId, eventId }
-      const attendeeData = await searchAttendees(filtersAttendee)
-      const attendee = attendeeData.data.items[0]
-
-      if (attendee) {
-        const userId = attendee.userId?._id || memberId
-        navigate(`/certificate/${certificateId}/${userId}`, {
+     
+      console.log("member", atendee)
+        
+        navigate(`/certificate/${certificateId}/${atendee.memberId._id}`, {
           state: { eventId },
         })
-      } else {
-        notification.error({
-          message: 'No se encontró un certificado para el miembro seleccionado.',
-        })
-      }
+     
+      
     } catch (error) {
       notification.error({ message: 'Error al verificar el certificado.' })
     }
@@ -158,8 +191,9 @@ const ConsultCertificate: FC = (): JSX.Element => {
             <ActionIcon
               variant="filled"
               color="blue"
-              onClick={() => handleSearch(inputValue)}
+              onClick={() => handleSearch(inputValue, true)}
               style={{ flex: '0.5', width: '100%' }}
+              disabled={searchResults.length < 7 && searchResults.length > 0}
             >
               <IconSearch />
             </ActionIcon>
@@ -170,17 +204,75 @@ const ConsultCertificate: FC = (): JSX.Element => {
             </Text>
           )}
 
-          {searchResults.length > 0 && (
+          {/* Lista de sugerencias cuando hay 3 o más caracteres - solo al escribir */}
+          {inputValue.length >= 3 && searchResults.length > 0 && !showFullResults && (
             <Box
-              mt="md"
+              mt="lg"
               style={{
                 backgroundColor: 'white',
                 borderRadius: '8px',
                 padding: '10px',
-                maxWidth: 500, // para que en mobile no se "desborde"
-                margin: '0 auto',
+                border: '1px solid #ddd',
+                maxHeight: '500px',
+                overflowY: 'auto',
               }}
             >
+              {searchResults.slice(0, 7).map((result) => (
+                <Box
+                  key={result._id}
+                  style={{
+                    padding: '10px',
+                    cursor: 'pointer',
+                    borderBottom: '1px solid #eee',
+                    display: 'flex',
+                    flexDirection: isMobile ? 'column' : 'row',
+                    alignItems: isMobile ? 'flex-start' : 'center',
+                    gap: '1rem',
+                    transition: 'background-color 0.2s',
+                  }}
+                  onClick={() => handleResultClick(result)}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f8f9fa')}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'white')}
+                >
+                  <Box style={{ flex: 1 }}>
+                    <Text fw={700}>{result.memberId.properties.fullName}</Text>
+                    <Text size="xs" c="gray">
+                      Documento: {result.memberId.properties.idNumber} | Correo:{' '}
+                      {result.memberId.properties.email}
+                    </Text>
+                  </Box>
+                  <Button
+                    size="xs"
+                    color="blue"
+                    leftSection={<IconCertificate size={16} />}
+                    style={{ minWidth: isMobile ? '100%' : 140 }}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleResultClick(result)
+                    }}
+                  >
+                    Ver mi certificado
+                  </Button>
+                </Box>
+              ))}
+            </Box>
+          )}
+
+          {/* Lista completa de resultados - solo cuando se hace click en buscar */}
+          {/* {searchResults.length > 0 && inputValue.length >= 3 && showFullResults && (
+            <Box
+              mt="lg"
+              style={{
+                backgroundColor: 'white',
+                borderRadius: '8px',
+                padding: '10px',
+                overflowX: 'scroll',
+                maxHeight: 500,
+              }}
+            >
+              <Text fw={600} mb="sm">
+                Todos los resultados encontrados:
+              </Text>
               {searchResults.map((result) => (
                 <Box
                   key={result._id}
@@ -193,12 +285,13 @@ const ConsultCertificate: FC = (): JSX.Element => {
                     alignItems: isMobile ? 'flex-start' : 'center',
                     gap: '1rem',
                   }}
-                  onClick={() => handleResultClick(result._id)}
+                  onClick={() => handleResultClick(result)}
                 >
                   <Box style={{ flex: 1 }}>
-                    <Text fw={700}>{result.properties.fullName}</Text>
+                    <Text fw={700}>{result.memberId.properties.fullName}</Text>
                     <Text size="xs" c="gray">
-                      Documento: {result.properties.idNumber} | Correo: {result.properties.email}
+                      Documento: {result.memberId.properties.idNumber} | Correo:{' '}
+                      {result.memberId.properties.email}
                     </Text>
                   </Box>
                   <Button
@@ -207,8 +300,8 @@ const ConsultCertificate: FC = (): JSX.Element => {
                     leftSection={<IconCertificate size={16} />}
                     style={{ minWidth: isMobile ? '100%' : 140 }}
                     onClick={(e) => {
-                      e.stopPropagation() // Evita doble navegación si hacen click al botón
-                      handleResultClick(result._id)
+                      e.stopPropagation()
+                      handleResultClick(result.memberId._id)
                     }}
                   >
                     Ver mi certificado
@@ -216,7 +309,7 @@ const ConsultCertificate: FC = (): JSX.Element => {
                 </Box>
               ))}
             </Box>
-          )}
+          )} */}
         </Card>
       </Box>
     </Container>

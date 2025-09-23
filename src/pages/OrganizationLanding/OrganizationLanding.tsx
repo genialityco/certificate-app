@@ -25,6 +25,7 @@ const OrganizationLanding: FC = () => {
   const [searchError, setSearchError] = useState('')
   const [isSearching, setIsSearching] = useState(false)
   const [countdown, setCountdown] = useState(100)
+  const [showFullResults, setShowFullResults] = useState(false)
 
   const navigate = useNavigate()
 
@@ -42,20 +43,47 @@ const OrganizationLanding: FC = () => {
     }
   }, [countdown, membersResults, navigate])
 
-  const handleSearch = debounce(async () => {
+  const handleSearch = debounce(async (searchTerm: string, isFromButton = false) => {
     try {
       setIsSearching(true)
       setSearchError('')
       setMembersResults([])
 
-      const isNumeric = /^\d+$/.test(attended)
-      const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(attended)
+      // Solo buscar si hay al menos 3 caracteres
+      if (searchTerm.length < 3) {
+        setMembersResults([])
+        setShowFullResults(false)
+        setIsSearching(false)
+        return
+      }
 
-      const filters = isNumeric
-        ? { 'properties.idNumber': attended }
-        : isEmail
-          ? { 'properties.email': attended }
-          : { 'properties.fullName': attended }
+      const isNumeric = /^\d+$/.test(searchTerm)
+      const isEmail = /^[^\s@]+@([^\s@.]+\.[^\s@]+)?$/.test(searchTerm);
+
+      let filters: any = {}
+      
+      if (isNumeric) {
+
+        filters = {
+          "filters[0][field]": "properties.idNumber",
+          "filters[0][operator]": "startswith",
+          "filters[0][value]": searchTerm
+        }
+      } else if (isEmail) {
+        // Para email usar "contains"
+        filters = {
+          "filters[0][field]": "properties.email",
+          "filters[0][operator]": "contains",
+          "filters[0][value]": searchTerm
+        }
+      } else {
+        // Para nombre usar "contains"
+        filters = {
+          "filters[0][field]": "properties.fullName",
+          "filters[0][operator]": "contains",
+          "filters[0][value]": searchTerm
+        }
+      }
 
       const memberData = await searchMembers(filters, { page: 1, limit: 100 })
       const items = memberData?.data?.items ?? []
@@ -64,6 +92,7 @@ const OrganizationLanding: FC = () => {
         setSearchError('No se encontró ningún registro.')
       } else {
         setMembersResults(items)
+        setShowFullResults(isFromButton) // Solo mostrar resultados completos si viene del botón
         if (items.length === 1) {
           setCountdown(3)
         }
@@ -105,7 +134,7 @@ const OrganizationLanding: FC = () => {
         </Container>
       </div>
 
-      <Container size="sm" style={{ marginTop: 180 }}>
+      <Container size="sm" style={{ marginTop: 180, minHeight: "70vh" }}>
         <Center>
           <Title order={2}>Busca tu Certificado</Title>
         </Center>
@@ -121,17 +150,62 @@ const OrganizationLanding: FC = () => {
               label="Cédula, Email o Nombre"
               placeholder="Ej: 12345678, usuario@correo.com o Pedro Perez"
               value={attended}
-              onChange={(e) => setAttended(e.currentTarget.value)}
+              onChange={(e) => {
+                const value = e.currentTarget.value
+                setAttended(value)
+                setShowFullResults(false) // Ocultar resultados completos cuando se edita
+                handleSearch(value, false) // false = no es del botón
+              }}
               mb="md"
             />
             <Button
               fullWidth
-              onClick={handleSearch}
+              onClick={() => handleSearch(attended, true)} // true = es del botón
               leftSection={<IconSearch size={16} />}
               loading={isSearching}
+              disabled={membersResults.length < 7 && membersResults.length > 0}
             >
               Buscar
             </Button>
+
+            {/* Lista de sugerencias cuando hay 3 o más caracteres - solo al escribir */}
+            {attended.length >= 3 && membersResults.length > 1 && !showFullResults && (
+              <Box mt="sm" style={{ 
+                border: '1px solid #ddd', 
+                borderRadius: '4px',
+                backgroundColor: 'white',
+                maxHeight: '300px',
+                overflowY: 'auto'
+              }}>
+                {membersResults.slice(0, 7).map((member) => {
+                  const { _id, properties } = member
+                  return (
+                    <Box
+                      key={_id}
+                      p="sm"
+                      onClick={() => navigate(`/user-detail/${_id}`)}
+                      style={{ 
+                        cursor: 'pointer',
+                        borderBottom: '1px solid #f0f0f0',
+                        transition: 'background-color 0.2s'
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'white'}
+                    >
+                      <Text size="sm" fw={500} mb={2}>
+                        {properties?.fullName}
+                      </Text>
+                      <Text size="xs" color="dimmed">
+                        {properties?.email}
+                      </Text>
+                      <Text size="xs" color="dimmed">
+                        Documento: {properties?.idNumber}
+                      </Text>
+                    </Box>
+                  )
+                })}
+              </Box>
+            )}
           </Box>
         </Center>
 
@@ -141,16 +215,17 @@ const OrganizationLanding: FC = () => {
           </Center>
         )}
 
-        {membersResults.length === 1 && (
+        {membersResults.length === 1 && attended.length >= 3 && (
           <Center mt="xl">
             <Text>Consultando información, serás redirigido en {countdown} segundos...</Text>
           </Center>
         )}
 
-        {membersResults.length > 1 && (
+        {/* Sección de múltiples resultados - solo se muestra cuando se hace click en "Buscar" */}
+        {membersResults.length > 1 && attended.length >= 3 && showFullResults && (
           <Container mt="xl">
             <Title order={4} mb="sm">
-              Selecciona tu nombre:
+              Todos los resultados encontrados:
             </Title>
             {membersResults.map((member) => {
               const { _id, properties } = member
