@@ -4,7 +4,6 @@ import { FC, useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 
 import {
-  ActionIcon,
   Box,
   Button,
   Card,
@@ -15,7 +14,7 @@ import {
   useMantineTheme,
 } from '@mantine/core'
 import { useMediaQuery } from '@mantine/hooks'
-import { IconCertificate, IconSearch } from '@tabler/icons-react'
+import { IconCertificate } from '@tabler/icons-react'
 import { debounce } from 'lodash'
 
 import { searchAttendees } from '@/services/api/attendeeService'
@@ -106,13 +105,6 @@ const ConsultCertificate: FC = (): JSX.Element => {
     try {
       const memberData = await searchAttendees(Object.assign(filters, { eventId: eventId, page: 1, limit: 20 }))
       //console.log("memberData", memberData.data.items)
-      if (!memberData.data.items.length) {
-        setSearchResults([])
-        setShowFullResults(false)
-        notification.error({ message: `No se encontraron resultados para "${value}"` })
-        return
-      }
-
       setSearchResults(memberData.data.items)
       setShowFullResults(isFromButton)
     } catch (error) {
@@ -131,14 +123,10 @@ const ConsultCertificate: FC = (): JSX.Element => {
 
   const handleResultClick = async (atendee: any) => {
     try {
-     
       console.log("member", atendee)
-        
-        navigate(`/certificate/${certificateId}/${atendee.memberId._id}`, {
-          state: { eventId },
-        })
-     
-      
+      navigate(`/certificate/${certificateId}/${atendee.memberId._id}`, {
+        state: { eventId },
+      })
     } catch (error) {
       notification.error({ message: 'Error al verificar el certificado.' })
     }
@@ -188,7 +176,7 @@ const ConsultCertificate: FC = (): JSX.Element => {
               onChange={handleInputChange}
               style={{ flex: '3', width: '100%' }}
             />
-            <ActionIcon
+            {/* <ActionIcon
               variant="filled"
               color="blue"
               onClick={() => handleSearch(inputValue, true)}
@@ -196,11 +184,16 @@ const ConsultCertificate: FC = (): JSX.Element => {
               disabled={searchResults.length < 7 && searchResults.length > 0}
             >
               <IconSearch />
-            </ActionIcon>
+            </ActionIcon> */}
           </Group>
           {loading && (
             <Text size="sm" color="gray" mt="md">
               Cargando resultados...
+            </Text>
+          )}
+          {inputValue.length >= 3 && searchResults.length === 0 && !loading && (
+            <Text size="sm" color="gray" mt="md">
+              No se encontraron resultados para "{inputValue}"
             </Text>
           )}
 
@@ -301,7 +294,7 @@ const ConsultCertificate: FC = (): JSX.Element => {
                     style={{ minWidth: isMobile ? '100%' : 140 }}
                     onClick={(e) => {
                       e.stopPropagation()
-                      handleResultClick(result.memberId._id)
+                      handleResultClick(result)
                     }}
                   >
                     Ver mi certificado
