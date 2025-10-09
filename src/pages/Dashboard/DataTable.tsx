@@ -256,7 +256,7 @@ const DataTable: React.FC = () => {
       const updatedData = propertyHeadersApi.reduce(
         (acc, header) => ({
           ...acc,
-          [header.fieldName]: user.memberId.properties[header.fieldName] || '',
+          [header.fieldName]: user?.memberId.properties[header.fieldName] || '',
         }),
         {} as Record<string, string | boolean>,
       )
@@ -328,12 +328,33 @@ const DataTable: React.FC = () => {
         })
         jsonData.push(rowObject)
       }
+
       return Array.isArray(jsonData) ? jsonData : []
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error('Error leyendo archivo Excel:', error)
       throw error
     }
+  }
+
+  // Función auxiliar para normalizar nombres de columnas
+  const normalizeColumnName = (columnName: string): string => {
+    return columnName
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '') // Remover acentos
+      .replace(/\s+/g, ' ')
+      .trim()
+  }
+
+  // Función auxiliar para encontrar el valor de una columna usando múltiples posibles nombres
+  const findColumnValue = (row: any, possibleNames: string[]): string => {
+    for (const name of possibleNames) {
+      if (row[name] !== undefined && row[name] !== null && row[name] !== '') {
+        return String(row[name]).trim()
+      }
+    }
+    return ''
   }
 
   const handleFileUpload = async (eventAction: React.ChangeEvent<HTMLInputElement>) => {
@@ -346,6 +367,14 @@ const DataTable: React.FC = () => {
     try {
       const jsonData = await readExcelFile(file)
 
+      // Crear un mapa de headers normalizados para facilitar la búsqueda
+      const normalizedHeaders: Record<string, string> = {}
+      if (jsonData.length > 0) {
+        Object.keys(jsonData[0]).forEach((header) => {
+          normalizedHeaders[normalizeColumnName(header)] = header
+        })
+      }
+
       const batchSize = 100
       const batches = []
       for (let i = 0; i < jsonData.length; i += batchSize) {
@@ -356,21 +385,92 @@ const DataTable: React.FC = () => {
 
       for (const [index, batch] of batches.entries()) {
         const formattedData = batch.map((row: any) => {
-          const idNumber = row['CEDULA'] || ''
-          const nombres = row['NOMBRES'] || ''
-          const apellidos = row['APELLIDOS'] || ''
-          const fullName = `${nombres} ${apellidos}`.trim()
-          const email = row['EMAIL'] || `${fullName.replace(/\s+/g, '').toLowerCase()}@acho.com.co`
-          const phone = row['CELULAR']?.toString() || ''
-          const categoryMember = row['CATEGORIA MIEMBRO'] || ''
-          const typeAttendee = row['CATEGORIA'] || ''
-          const certificationHours = row['TIEMPO \nCERTIFICADO']?.toString() || '0'
-          const attended = row['CERTIFICADO \nREALIZADO'] !== ''
+          // Mapear los diferentes posibles nombres de columnas
+          const idNumberPossibleNames = [
+            'CEDULA',
+            'CÉDULA',
+            'CEDULA O NUMERO DE DOCUMENTO',
+            'CÉDULA O NÚMERO DE DOCUMENTO',
+            'NUMERO DE DOCUMENTO',
+            'NÚMERO DE DOCUMENTO',
+            'ID',
+            'IDENTIFICACION',
+            'IDENTIFICACIÓN',
+          ]
+
+          const namesPossibleNames = ['NOMBRES', 'NOMBRE', 'PRIMER NOMBRE', 'NOMBRE COMPLETO']
+
+          const lastNamesPossibleNames = ['APELLIDOS', 'APELLIDO', 'PRIMER APELLIDO']
+
+          const emailPossibleNames = [
+            'EMAIL',
+            'CORREO',
+            'CORREO ELECTRONICO',
+            'CORREO ELECTRÓNICO',
+            'E-MAIL',
+            'MAIL',
+          ]
+
+          const phonePossibleNames = ['CELULAR', 'TELEFONO', 'TELÉFONO', 'PHONE', 'MOVIL', 'MÓVIL']
+
+          const categoryMemberPossibleNames = [
+            'CATEGORIA MIEMBRO',
+            'CATEGORÍA MIEMBRO',
+            'SPECIALTY',
+            'ESPECIALIDAD',
+          ]
+
+          const typePossibleNames = ['CATEGORIA', 'CATEGORÍA', 'TIPO', 'TYPE', 'TIPO ASISTENTE']
+
+          const hoursPossibleNames = [
+            'TIEMPO \nCERTIFICADO',
+            'TIEMPO CERTIFICADO',
+            'HORAS',
+            'HORAS A CERTIFICAR',
+            'HORAS CERTIFICACION',
+            'HORAS CERTIFICACIÓN',
+            'CERTIFICATION HOURS',
+          ]
+
+          const certificatePossibleNames = [
+            'CERTIFICADO \nREALIZADO',
+            'CERTIFICADO REALIZADO',
+            'CERTIFICADO',
+            'ATTENDED',
+            'ASISTIO',
+            'ASISTIÓ',
+          ]
+
+          // Buscar valores usando los nombres posibles
+          const idNumber = findColumnValue(row, idNumberPossibleNames)
+
+          // Para el nombre completo, primero intentar encontrar "NOMBRE COMPLETO"
+          let fullName = findColumnValue(row, ['NOMBRE COMPLETO'])
+
+          // Si no se encuentra "NOMBRE COMPLETO", construir desde nombres y apellidos separados
+          if (!fullName) {
+            const nombres = findColumnValue(row, namesPossibleNames)
+            const apellidos = findColumnValue(row, lastNamesPossibleNames)
+            fullName = `${nombres} ${apellidos}`.trim()
+          }
+
+          const email =
+            findColumnValue(row, emailPossibleNames) ||
+            `${fullName.replace(/\s+/g, '').toLowerCase()}@acho.com.co`
+
+          const phone = findColumnValue(row, phonePossibleNames)
+          const categoryMember = findColumnValue(row, categoryMemberPossibleNames)
+          const typeAttendee = findColumnValue(row, typePossibleNames)
+          const certificationHours = findColumnValue(row, hoursPossibleNames) || '0'
+
+          // Para determinar si asistió, verificar si hay algún valor en las columnas de certificado
+          const certificateValue = findColumnValue(row, certificatePossibleNames)
+          const attended = certificateValue !== '' && certificateValue.toLowerCase() !== 'no'
 
           return {
             user: {
               email: email.split(',')[0].trim().toLowerCase(),
-              password: String(idNumber || 'achoapp'), // se puede generar otro valor
+              password: String(idNumber || 'achoapp'),
             },
             attendee: {
               eventId: eventId || '',
@@ -386,7 +486,7 @@ const DataTable: React.FC = () => {
                 idNumber,
                 fullName,
                 phone,
-                email,
+                email: email.split(',')[0].trim().toLowerCase(),
                 password: String(idNumber || 'achoapp'),
                 specialty: categoryMember,
               },
@@ -395,7 +495,6 @@ const DataTable: React.FC = () => {
         })
 
         await addOrCreateAttendee(formattedData)
-
         const progress = Math.round(((index + 1) / totalBatches) * 100)
         setUploadProgress(progress)
       }
@@ -463,7 +562,7 @@ const DataTable: React.FC = () => {
                   <Table.Tr key={item._id}>
                     {propertyHeadersApi.map((header) => (
                       <Table.Td key={`${item._id}-${header.fieldName}`}>
-                        {item.memberId.properties[header.fieldName] || ''}
+                        {item?.memberId?.properties[header.fieldName] || ''}
                       </Table.Td>
                     ))}
                     <Table.Td>
