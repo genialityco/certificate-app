@@ -51,7 +51,7 @@ const Dashboard: FC = (): JSX.Element => {
   }, [])
 
   const fetchEvents = async () => {
-    const filters = { organizationId }
+    const filters = { organizationId, limit: 100 }
     const response = await searchEvents(filters)
     const data = response.data?.items ? response.data?.items : []
     setEvents(data as MyEvent[])
