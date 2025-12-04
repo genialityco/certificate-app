@@ -90,19 +90,16 @@ export const registerAttendee = async (attendeeData: Partial<Attendee>) => {
 }
 
 // Incrementar certificateDownloads por userId o memberId
-export const incrementCertificateDownload = async (payload: {
-  userId?: string
-  memberId?: string
-}) => {
+export const incrementCertificateDownload = async (payload: { attendeeId?: string }) => {
   try {
+    console.log('Incrementing certificateDownloads with payload:', payload)
     const response = await api.put('/attendees/certificate-download', payload)
+    console.log('Response from incrementCertificateDownload:', response.data)
     return response.data
   } catch (error) {
     console.error('Error incrementing certificateDownloads:', error)
     throw error
   }
-
-  
 }
 export const addOrCreateAttendee = async (payload: any) => {
   try {

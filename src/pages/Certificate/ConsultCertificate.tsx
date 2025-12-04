@@ -1,18 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+
 /* eslint-disable react-hooks/exhaustive-deps */
 import { FC, useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 
-import {
-  Box,
-  Button,
-  Card,
-  Container,
-  Group,
-  Input,
-  Text,
-  useMantineTheme,
-} from '@mantine/core'
+import { Box, Button, Card, Container, Group, Input, Text, useMantineTheme } from '@mantine/core'
 import { useMediaQuery } from '@mantine/hooks'
 import { IconCertificate } from '@tabler/icons-react'
 import { debounce } from 'lodash'
@@ -50,7 +42,7 @@ const ConsultCertificate: FC = (): JSX.Element => {
 
   const params = useParams()
   const navigate = useNavigate()
-  const { eventId, certificateId } = params
+  const { eventId } = params
   const theme = useMantineTheme()
 
   const isMobile = useMediaQuery(`(max-width: ${theme.breakpoints.sm})`)
@@ -79,31 +71,33 @@ const ConsultCertificate: FC = (): JSX.Element => {
     const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
 
     let filters: any = {}
-    
+
     if (isNumeric) {
       filters = {
-        "filters[0][field]": "memberId.properties.idNumber",
-        "filters[0][operator]": "eq",
-        "filters[0][value]": value,
+        'filters[0][field]': 'memberId.properties.idNumber',
+        'filters[0][operator]': 'eq',
+        'filters[0][value]': value,
       }
     } else if (isEmail) {
       filters = {
-        "filters[0][field]": "memberId.properties.email",
-        "filters[0][operator]": "contains",
-        "filters[0][value]": value,
+        'filters[0][field]': 'memberId.properties.email',
+        'filters[0][operator]': 'contains',
+        'filters[0][value]': value,
       }
     } else {
       filters = {
-        "filters[0][field]": "memberId.properties.fullName",
-        "filters[0][operator]": "contains",
-        "filters[0][value]": value,
+        'filters[0][field]': 'memberId.properties.fullName',
+        'filters[0][operator]': 'contains',
+        'filters[0][value]': value,
       }
     }
 
     setLoading(true)
 
     try {
-      const memberData = await searchAttendees(Object.assign(filters, { eventId: eventId, page: 1, limit: 20 }))
+      const memberData = await searchAttendees(
+        Object.assign(filters, { eventId: eventId, page: 1, limit: 20 }),
+      )
       //console.log("memberData", memberData.data.items)
       setSearchResults(memberData.data.items)
       setShowFullResults(isFromButton)
@@ -123,8 +117,8 @@ const ConsultCertificate: FC = (): JSX.Element => {
 
   const handleResultClick = async (atendee: any) => {
     try {
-      console.log("member", atendee)
-      navigate(`/certificate/${certificateId}/${atendee.memberId._id}`, {
+      console.log('member', atendee)
+      navigate(`/certificate/${atendee._id}/${atendee.memberId._id}`, {
         state: { eventId },
       })
     } catch (error) {

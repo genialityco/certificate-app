@@ -243,7 +243,7 @@ const GenerateCertificate: FC = (): JSX.Element => {
     try {
       // 1. Actualizar certificateDownloads (y attended si aplica)
       if (attendee && attendeeIdType) {
-        await incrementCertificateDownload({ [attendeeIdType]: attendeeId })
+        await incrementCertificateDownload({ attendeeId: certificateId })
       }
 
       // 2. Continuar con la descarga del canvas
