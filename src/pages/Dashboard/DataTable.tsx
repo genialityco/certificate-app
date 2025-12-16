@@ -536,6 +536,7 @@ const DataTable: React.FC = () => {
             'HORAS CERTIFICACION',
             'HORAS CERTIFICACIÓN',
             'CERTIFICATION HOURS',
+            'Horas certificadas',
           ]
           const certificatePossibleNames = [
             'CERTIFICADO \nREALIZADO',
