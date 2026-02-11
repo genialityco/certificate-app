@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react'
 
 import { Paper } from '@mantine/core'
 
+import { fetchEventById } from '@/services/api/eventService'
 import { fetchOrganizationById } from '@/services/api/organizationService'
 import useActionMode from '@/store/useActionMode'
 import useActiveObjectId from '@/store/useActiveObjectId'
@@ -38,6 +39,7 @@ export default function OverlaySidebar({
 }) {
   const [userProperties, setUserProperties] = useState<Property[]>([])
   const [selectedProperty, setSelectedProperty] = useState('')
+  const [eventTitle, setEventTitle] = useState('')
   const activeObjectId = useActiveObjectId((state) => state.activeObjectId)
 
   const userMode = useUserMode((state) => state.userMode)
@@ -59,6 +61,27 @@ export default function OverlaySidebar({
     }
 
     fetchEventProperties()
+  }, [eventId])
+
+  useEffect(() => {
+    const fetchEvent = async () => {
+      if (eventId) {
+        try {
+          const response = await fetchEventById(eventId)
+          console.log('Event response:', response)
+          if (response) {
+            const eventName = response.name || response.data?.name
+            if (eventName) {
+              setEventTitle(eventName)
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching event:', error)
+        }
+      }
+    }
+
+    fetchEvent()
   }, [eventId])
 
   const handlePropertyChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -134,6 +157,7 @@ export default function OverlaySidebar({
               <option value="" disabled>
                 Seleccione una propiedad
               </option>
+              <option value={eventTitle || 'Eventos'}>{eventTitle || 'Eventos'}</option>
               {userProperties.map((property, index) => (
                 <option key={index} value={property.fieldName}>
                   {property.label}

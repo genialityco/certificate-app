@@ -26,12 +26,11 @@ import * as XLSX from 'xlsx'
 
 import {
   addOrCreateAttendee,
-  createAttendee,
   searchAttendees,
   updateAttendee,
 } from '@/services/api/attendeeService'
 import { fetchEventById } from '@/services/api/eventService'
-import { createMember, updateMember } from '@/services/api/memberService'
+import { updateMember } from '@/services/api/memberService'
 import { fetchOrganizationById } from '@/services/api/organizationService'
 import notification from '@/utils/notification'
 
@@ -46,18 +45,13 @@ interface OrganizationData {
   _id: string
   name: string
   propertiesDefinition: EventProperty[]
-  styles: {
-    eventImage: string
-  }
+  styles: { eventImage: string }
 }
 
 interface EventData {
   name: string
   organizationId: string
-  styles: {
-    eventImage: string
-    miniatureImage: string
-  }
+  styles: { eventImage: string; miniatureImage: string }
 }
 
 interface EventUser {
@@ -65,10 +59,7 @@ interface EventUser {
   attended: boolean
   _id: string
   properties: Record<string, string | boolean>
-  memberId: {
-    [x: string]: unknown
-    properties: Record<string, string | boolean>
-  }
+  memberId: { [x: string]: unknown; properties: Record<string, string | boolean> }
   certificationHours: string
   typeAttendee: string
 }
@@ -85,10 +76,7 @@ const DataTable: React.FC = () => {
     isOpen: boolean
     mode: 'add' | 'edit'
     user?: EventUser
-  }>({
-    isOpen: false,
-    mode: 'add',
-  })
+  }>({ isOpen: false, mode: 'add' })
   const [newUserData, setNewUserData] = useState<Record<string, string | boolean>>({
     isAttendee: false,
   })
@@ -98,6 +86,14 @@ const DataTable: React.FC = () => {
   const [event, setEvent] = useState<EventData | null>(null)
   const [isBulkUploadModalOpen, setBulkUploadModalOpen] = useState<boolean>(false)
   const [uploadProgress, setUploadProgress] = useState<number>(0)
+  const [uploadSummary, setUploadSummary] = useState<{
+    total: number
+    successful: number
+    errors: number
+    updated: number
+    created: number
+    errorDetails: { row: number; email: string; error: string }[]
+  } | null>(null)
   const { eventId } = useParams()
 
   useEffect(() => {
@@ -113,32 +109,94 @@ const DataTable: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, perPage, debouncedSearchTerm])
 
+  // Resetear página cuando cambie el término de búsqueda
+  useEffect(() => {
+    if (debouncedSearchTerm) {
+      setPage(1)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearchTerm])
+
   const getEventUsersData = async () => {
     try {
-      const filters = {
-        eventId: eventId,
-        page: page,
-        limit: perPage,
-      }
-      const response = await searchAttendees(filters)
+      setLoading(true)
 
-      if (response.status === 'success') {
-        setUsers(response.data.items as EventUser[])
-        setTotalPages(response.data.totalPages)
-        // No modifiques el page aquí
-      } else if (
-        response.status === 'error' &&
-        response.message === 'No se encontraron asistentes'
-      ) {
-        setUsers([])
-        setTotalPages(0)
+      // Si hay término de búsqueda, queremos filtrar sobre todos los registros disponibles.
+      // Para ello descargamos todas las páginas del backend en lotes y aplicamos el filtro
+      // en el cliente, luego paginamos localmente.
+      if (debouncedSearchTerm && String(debouncedSearchTerm).trim() !== '') {
+        const term = String(debouncedSearchTerm).toLowerCase().trim()
+        const pageSize = 100
+        let current = 1
+        let allItems: EventUser[] = []
+
+        while (true) {
+          const resp = await searchAttendees({ eventId: eventId, page: current, limit: pageSize })
+          if (resp.status === 'success' && Array.isArray(resp.data.items)) {
+            allItems = allItems.concat(resp.data.items as EventUser[])
+            const totalPagesFromResp = resp.data.totalPages || 1
+            if (current >= totalPagesFromResp) break
+            current += 1
+          } else if (resp.status === 'error' && resp.message === 'No se encontraron asistentes') {
+            allItems = []
+            break
+          } else {
+            throw new Error(resp.message || 'Error inesperado al descargar asistentes')
+          }
+        }
+
+        // Aplicar filtro por nombre/correo sobre todos los registros
+        const matched = allItems.filter((it) => {
+          try {
+            const props = it?.memberId?.properties || {}
+            const combined = Object.values(props)
+              .filter((v) => typeof v === 'string' || typeof v === 'number')
+              .map((v) => String(v).toLowerCase())
+              .join(' ')
+
+            const email = (props.email as string) || ''
+            const name = (props.fullName as string) || ''
+
+            return (
+              combined.includes(term) ||
+              email.toLowerCase().includes(term) ||
+              name.toLowerCase().includes(term)
+            )
+          } catch (e) {
+            return false
+          }
+        })
+
+        // Paginar localmente
+        const total = matched.length
+        const totalPagesLocal = total > 0 ? Math.max(1, Math.ceil(total / perPage)) : 0
+        const start = (page - 1) * perPage
+        const pageItems = matched.slice(start, start + perPage)
+
+        setUsers(pageItems)
+        setTotalPages(totalPagesLocal)
       } else {
-        throw new Error(response.message || 'Error inesperado')
+        // Comportamiento por defecto: pedir al servidor la página solicitada
+        const filters: any = { eventId: eventId, page: page, limit: perPage }
+        const response = await searchAttendees(filters)
+
+        if (response.status === 'success') {
+          setUsers(response.data.items as EventUser[])
+          setTotalPages(response.data.totalPages)
+        } else if (
+          response.status === 'error' &&
+          response.message === 'No se encontraron asistentes'
+        ) {
+          setUsers([])
+          setTotalPages(0)
+        } else {
+          throw new Error(response.message || 'Error inesperado')
+        }
       }
     } catch (error) {
-      notification.error({
-        message: 'No se pudo cargar la información de los asistentes',
-      })
+      notification.error({ message: 'No se pudo cargar la información de los asistentes' })
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -154,9 +212,7 @@ const DataTable: React.FC = () => {
         filterHeadTable(result.propertiesDefinition, responseEvent.data.organizationId)
       }
     } catch (error) {
-      notification.error({
-        message: 'Error al cargar las propiedades del evento',
-      })
+      notification.error({ message: 'Error al cargar las propiedades del evento' })
     } finally {
       setLoading(false)
     }
@@ -178,50 +234,81 @@ const DataTable: React.FC = () => {
   }
 
   const handleInputChange = (fieldName: string, value: string | boolean) => {
-    setNewUserData((prevState) => ({
-      ...prevState,
-      [fieldName]: value,
-    }))
+    setNewUserData((prevState) => ({ ...prevState, [fieldName]: value }))
   }
 
   const handleEditInputChange = (fieldName: string, value: string | boolean) => {
-    setEditingUserData((prevState) => ({
-      ...prevState,
-      [fieldName]: value,
-    }))
+    setEditingUserData((prevState) => ({ ...prevState, [fieldName]: value }))
   }
 
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault()
+
     try {
-      const response = await createMember({
-        properties: newUserData,
-        organizationId: event?.organizationId || '',
-      })
-      if (newUserData.attended) {
-        try {
-          const attendeData = {
-            userId: null,
-            eventId: eventId,
-            memberId: response.data._id,
-            attended: true,
-          }
-          await createAttendee(attendeData)
-        } catch (error) {
-          notification.error({ message: 'Error añadiendo asistente' })
-        }
+      // 1. Obtener y validar datos
+      const email = (newUserData.email as string)?.trim().toLowerCase()
+      const password = String(newUserData.idNumber || newUserData.password || 'achoapp')
+
+      if (!email) {
+        notification.error({ message: 'El email es requerido' })
+        return
       }
-      await getEventUsersData()
-      setModalState({ isOpen: false, mode: 'add' })
-    } catch (error) {
-      notification.error({ message: 'Error añadiendo usuario' })
+
+      console.log('=== INICIANDO CREACIÓN DE USUARIO ===')
+      console.log('Email:', email)
+
+      // 2. Preparar el payload para addOrCreateAttendee
+      const payload = [
+        {
+          user: { email: email, password: password },
+          attendee: {
+            eventId: eventId || '',
+            attended: newUserData.attended || false,
+            certificationHours: String(newUserData.certificationHours || '0'),
+            typeAttendee: String(newUserData.typeAttendee || ''),
+            certificateDownloads: 0,
+          },
+          member: {
+            organizationId: event?.organizationId || '',
+            memberActive: true,
+            properties: { ...newUserData, email, password },
+          },
+        },
+      ]
+
+      console.log('Payload a enviar:', payload)
+
+      // 3. Llamar al servicio que maneja todo el flujo
+      const response = await addOrCreateAttendee(payload)
+
+      console.log('Respuesta del servicio:', response)
+
+      if (response.status === 'success') {
+        console.log('=== USUARIO CREADO/ACTUALIZADO EXITOSAMENTE ===')
+
+        notification.success({ message: 'Usuario procesado exitosamente' })
+
+        await getEventUsersData()
+        setModalState({ isOpen: false, mode: 'add' })
+        setNewUserData({ isAttendee: false })
+      } else {
+        throw new Error(response.message || 'Error procesando usuario')
+      }
+    } catch (error: any) {
+      console.error('=== ERROR AÑADIENDO USUARIO ===', error)
+      const errMsg = error?.response?.data?.message || error?.message || 'Error desconocido'
+      notification.error({ message: `Error añadiendo usuario: ${errMsg}` })
     }
   }
 
   const handleUpdateUser = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-      await updateMember(modalState.user?._id || '', {
+      // modalState.user is the EventUser (attendee). The member ID is in user.memberId._id
+      const memberId = (modalState.user as EventUser | undefined)?.memberId?._id as
+        | string
+        | undefined
+      await updateMember(memberId || '', {
         organizationId: event?.organizationId || '',
         properties: editingUserData,
       })
@@ -234,17 +321,13 @@ const DataTable: React.FC = () => {
 
   const handleDeleteUser = async (userId: string, userData: EventUser) => {
     try {
-      // Extraer solo los _id de eventId y memberId
       const attendeeData = {
         ...userData,
         eventId: userData.eventId._id as string,
         memberId: userData.memberId._id,
       }
 
-      // Realizar la actualización con los datos ajustados
       await updateAttendee(userId, attendeeData)
-
-      // Actualizar la lista de usuarios
       await getEventUsersData()
     } catch (error) {
       notification.error({ message: 'Error eliminando usuario' })
@@ -264,19 +347,19 @@ const DataTable: React.FC = () => {
       updatedData.attended = user.attended || false
 
       setEditingUserData(updatedData)
+    } else {
+      // Limpiar datos para nuevo usuario
+      setNewUserData({ isAttendee: false })
     }
 
     setModalState({ isOpen: true, mode, user })
   }
 
   const handleDownloadTemplate = () => {
-    // Generar el template dinámico
     const templateHeaders = propertyHeadersApi.map((header) => header.label)
     const worksheet = XLSX.utils.aoa_to_sheet([templateHeaders])
     const workbook = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Template')
-
-    // Descargar el archivo
     XLSX.writeFile(workbook, 'template.xlsx')
   }
 
@@ -287,10 +370,8 @@ const DataTable: React.FC = () => {
       const sheetName = workbook.SheetNames[0]
       const sheet = workbook.Sheets[sheetName]
 
-      // Obtener los datos como array de arrays (raw data)
       const rawData = XLSX.utils.sheet_to_json(sheet, { header: 1 })
 
-      // Encontrar la fila de headers (primera fila con datos válidos)
       let headerRowIndex = -1
       let headers: string[] = []
 
@@ -311,18 +392,16 @@ const DataTable: React.FC = () => {
         throw new Error('No se encontraron headers válidos en el archivo')
       }
 
-      // Convertir las filas de datos a objetos usando los headers encontrados
       const jsonData = []
       for (let i = headerRowIndex + 1; i < rawData.length; i++) {
         const row = rawData[i] as any[]
         if (!row || !row.some((cell) => cell !== null && cell !== undefined && cell !== '')) {
-          continue // Saltar filas vacías
+          continue
         }
 
         const rowObject: any = {}
         headers.forEach((header, index) => {
           if (header) {
-            // Solo procesar headers no vacíos
             rowObject[header] = row[index] !== null && row[index] !== undefined ? row[index] : ''
           }
         })
@@ -331,27 +410,38 @@ const DataTable: React.FC = () => {
 
       return Array.isArray(jsonData) ? jsonData : []
     } catch (error) {
-      // eslint-disable-next-line no-console
       console.error('Error leyendo archivo Excel:', error)
       throw error
     }
   }
 
-  // Función auxiliar para normalizar nombres de columnas
+  // Normaliza un nombre de columna: quita acentos, pasa a minúsculas y normaliza espacios
   const normalizeColumnName = (columnName: string): string => {
-    return columnName
+    return String(columnName)
       .toLowerCase()
       .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '') // Remover acentos
+      .replace(/[\u0300-\u036f]/g, '')
       .replace(/\s+/g, ' ')
       .trim()
   }
 
-  // Función auxiliar para encontrar el valor de una columna usando múltiples posibles nombres
-  const findColumnValue = (row: any, possibleNames: string[]): string => {
+  // Busca el valor en una fila usando nombres posibles (p. ej. ['EMAIL','CORREO']),
+  // apoyándose en un mapa de headers normalizados -> headerOriginal
+  const findColumnValueFromRow = (
+    row: any,
+    possibleNames: string[],
+    normalizedHeadersMap: Record<string, string>,
+  ): string => {
     for (const name of possibleNames) {
-      if (row[name] !== undefined && row[name] !== null && row[name] !== '') {
-        return String(row[name]).trim()
+      const norm = normalizeColumnName(name)
+      const actualHeader = normalizedHeadersMap[norm]
+      if (
+        actualHeader &&
+        row[actualHeader] !== undefined &&
+        row[actualHeader] !== null &&
+        row[actualHeader] !== ''
+      ) {
+        return String(row[actualHeader]).trim()
       }
     }
     return ''
@@ -363,11 +453,25 @@ const DataTable: React.FC = () => {
 
     setLoading(true)
     setUploadProgress(0)
+    setUploadSummary(null)
+
+    // Inicializar resumen
+    const summary = {
+      total: 0,
+      successful: 0,
+      errors: 0,
+      updated: 0,
+      created: 0,
+      errorDetails: [] as { row: number; email: string; error: string }[],
+    }
 
     try {
+      console.log('=== INICIANDO CARGA MASIVA ===')
       const jsonData = await readExcelFile(file)
+      summary.total = jsonData.length
+      console.log(`Total de registros a procesar: ${jsonData.length}`)
 
-      // Crear un mapa de headers normalizados para facilitar la búsqueda
+      // Construir mapa de headers normalizados -> header original (para búsquedas tolerantes)
       const normalizedHeaders: Record<string, string> = {}
       if (jsonData.length > 0) {
         Object.keys(jsonData[0]).forEach((header) => {
@@ -375,17 +479,25 @@ const DataTable: React.FC = () => {
         })
       }
 
-      const batchSize = 100
+      const batchSize = 50
       const batches = []
       for (let i = 0; i < jsonData.length; i += batchSize) {
         batches.push(jsonData.slice(i, i + batchSize))
       }
 
       const totalBatches = batches.length
+      let processedCount = 0
+      const totalRecords = jsonData.length
+      let currentRowIndex = 0
 
       for (const [index, batch] of batches.entries()) {
-        const formattedData = batch.map((row: any) => {
-          // Mapear los diferentes posibles nombres de columnas
+        console.log(`\n=== Procesando batch ${index + 1}/${totalBatches} ===`)
+
+        // Formatear datos del batch para el servicio addOrCreateAttendee
+        const formattedData = batch.map((row: any, batchIndex: number) => {
+          const globalRowIndex = currentRowIndex + batchIndex
+
+          // Definir nombres posibles para cada columna
           const idNumberPossibleNames = [
             'CEDULA',
             'CÉDULA',
@@ -399,9 +511,7 @@ const DataTable: React.FC = () => {
           ]
 
           const namesPossibleNames = ['NOMBRES', 'NOMBRE', 'PRIMER NOMBRE', 'NOMBRE COMPLETO']
-
           const lastNamesPossibleNames = ['APELLIDOS', 'APELLIDO', 'PRIMER APELLIDO']
-
           const emailPossibleNames = [
             'EMAIL',
             'CORREO',
@@ -410,18 +520,14 @@ const DataTable: React.FC = () => {
             'E-MAIL',
             'MAIL',
           ]
-
           const phonePossibleNames = ['CELULAR', 'TELEFONO', 'TELÉFONO', 'PHONE', 'MOVIL', 'MÓVIL']
-
           const categoryMemberPossibleNames = [
             'CATEGORIA MIEMBRO',
             'CATEGORÍA MIEMBRO',
             'SPECIALTY',
             'ESPECIALIDAD',
           ]
-
           const typePossibleNames = ['CATEGORIA', 'CATEGORÍA', 'TIPO', 'TYPE', 'TIPO ASISTENTE']
-
           const hoursPossibleNames = [
             'TIEMPO \nCERTIFICADO',
             'TIEMPO CERTIFICADO',
@@ -430,8 +536,8 @@ const DataTable: React.FC = () => {
             'HORAS CERTIFICACION',
             'HORAS CERTIFICACIÓN',
             'CERTIFICATION HOURS',
+            'Horas certificadas',
           ]
-
           const certificatePossibleNames = [
             'CERTIFICADO \nREALIZADO',
             'CERTIFICADO REALIZADO',
@@ -441,74 +547,210 @@ const DataTable: React.FC = () => {
             'ASISTIÓ',
           ]
 
-          // Buscar valores usando los nombres posibles
-          const idNumber = findColumnValue(row, idNumberPossibleNames)
+          // Extraer valores (usando headers normalizados)
+          const idNumber = findColumnValueFromRow(row, idNumberPossibleNames, normalizedHeaders)
+          let fullName = findColumnValueFromRow(row, ['NOMBRE COMPLETO'], normalizedHeaders)
 
-          // Para el nombre completo, primero intentar encontrar "NOMBRE COMPLETO"
-          let fullName = findColumnValue(row, ['NOMBRE COMPLETO'])
-
-          // Si no se encuentra "NOMBRE COMPLETO", construir desde nombres y apellidos separados
           if (!fullName) {
-            const nombres = findColumnValue(row, namesPossibleNames)
-            const apellidos = findColumnValue(row, lastNamesPossibleNames)
+            const nombres = findColumnValueFromRow(row, namesPossibleNames, normalizedHeaders)
+            const apellidos = findColumnValueFromRow(row, lastNamesPossibleNames, normalizedHeaders)
             fullName = `${nombres} ${apellidos}`.trim()
           }
 
           const email =
-            findColumnValue(row, emailPossibleNames) ||
+            findColumnValueFromRow(row, emailPossibleNames, normalizedHeaders) ||
             `${fullName.replace(/\s+/g, '').toLowerCase()}@acho.com.co`
 
-          const phone = findColumnValue(row, phonePossibleNames)
-          const categoryMember = findColumnValue(row, categoryMemberPossibleNames)
-          const typeAttendee = findColumnValue(row, typePossibleNames)
-          const certificationHours = findColumnValue(row, hoursPossibleNames) || '0'
+          const phone = findColumnValueFromRow(row, phonePossibleNames, normalizedHeaders)
+          const categoryMember = findColumnValueFromRow(
+            row,
+            categoryMemberPossibleNames,
+            normalizedHeaders,
+          )
+          const typeAttendee = findColumnValueFromRow(row, typePossibleNames, normalizedHeaders)
+          const certificationHours =
+            findColumnValueFromRow(row, hoursPossibleNames, normalizedHeaders) || '0'
 
-          // Para determinar si asistió, verificar si hay algún valor en las columnas de certificado
-          const certificateValue = findColumnValue(row, certificatePossibleNames)
+          const certificateValue = findColumnValueFromRow(
+            row,
+            certificatePossibleNames,
+            normalizedHeaders,
+          )
           const attended = certificateValue !== '' && certificateValue.toLowerCase() !== 'no'
 
+          const cleanEmail = email.split(',')[0].trim().toLowerCase()
+          const password = String(idNumber || 'achoapp')
+
+          // Formato esperado por addOrCreateAttendee
+          // Construir propiedades del miembro mapeando a los fieldName que provee la API
+          const memberPropsBasic: Record<string, any> = {
+            idNumber,
+            fullName,
+            phone,
+            email: cleanEmail,
+            password,
+            specialty: categoryMember,
+          }
+
+          const memberProperties: Record<string, any> = {}
+
+          if (propertyHeadersApi && propertyHeadersApi.length > 0) {
+            propertyHeadersApi.forEach((ph) => {
+              // Intentar obtener valor directo desde el header del excel usando la etiqueta
+              const valFromHeader = findColumnValueFromRow(
+                row,
+                [ph.label, ph.fieldName],
+                normalizedHeaders,
+              )
+              if (valFromHeader !== '') {
+                memberProperties[ph.fieldName] = valFromHeader
+                return
+              }
+
+              // Heurística: asignar según el nombre del campo
+              const key = ph.fieldName.toLowerCase()
+              if (key.includes('id') || key.includes('cedula') || key.includes('ident')) {
+                memberProperties[ph.fieldName] = idNumber || ''
+              } else if (key.includes('name') || key.includes('nombre')) {
+                memberProperties[ph.fieldName] = fullName || ''
+              } else if (key.includes('email')) {
+                memberProperties[ph.fieldName] = cleanEmail || ''
+              } else if (
+                key.includes('phone') ||
+                key.includes('cel') ||
+                key.includes('movil') ||
+                key.includes('telefono')
+              ) {
+                memberProperties[ph.fieldName] = phone || ''
+              } else if (
+                key.includes('special') ||
+                key.includes('especial') ||
+                key.includes('category') ||
+                key.includes('tipo')
+              ) {
+                memberProperties[ph.fieldName] = categoryMember || ''
+              } else {
+                // Fallback: empty
+                memberProperties[ph.fieldName] = ''
+              }
+            })
+          } else {
+            // Si no tenemos definitions, enviar un set básico
+            Object.assign(memberProperties, memberPropsBasic)
+          }
+
+          // Asegurar que email y password siempre existan en properties
+          memberProperties.email = memberProperties.email || cleanEmail
+          memberProperties.password = memberProperties.password || password
+
           return {
-            user: {
-              email: email.split(',')[0].trim().toLowerCase(),
-              password: String(idNumber || 'achoapp'),
-            },
+            rowIndex: globalRowIndex + 2, // +2 porque Excel empieza en 1 y tiene header
+            user: { email: cleanEmail, password: password },
             attendee: {
               eventId: eventId || '',
-              attended,
-              certificationHours,
-              typeAttendee,
+              attended: attended,
+              certificationHours: certificationHours,
+              typeAttendee: typeAttendee,
               certificateDownloads: 0,
             },
             member: {
               organizationId: event?.organizationId || '',
               memberActive: true,
-              properties: {
-                idNumber,
-                fullName,
-                phone,
-                email: email.split(',')[0].trim().toLowerCase(),
-                password: String(idNumber || 'achoapp'),
-                specialty: categoryMember,
-              },
+              properties: memberProperties,
             },
           }
         })
 
-        await addOrCreateAttendee(formattedData)
-        const progress = Math.round(((index + 1) / totalBatches) * 100)
+        console.log(`Registros formateados en batch: ${formattedData.length}`)
+
+        // Enviar el batch al servicio
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const dataToSend = formattedData.map(({ rowIndex, ...data }) => data)
+          const response = await addOrCreateAttendee(dataToSend)
+
+          console.log(`✓ Batch ${index + 1} procesado exitosamente`)
+          console.log('Respuesta:', response)
+
+          // Analizar respuesta para el resumen
+          if (response.status === 'success' && Array.isArray(response.data)) {
+            response.data.forEach((result: any, idx: number) => {
+              const rowData = formattedData[idx]
+              if (result && !result.error) {
+                summary.successful++
+                // Determinar si fue creado o actualizado basado en la respuesta
+                if (result.attendee && result.attendee._id) {
+                  // Si hay información del attendee, asumimos que fue procesado correctamente
+                  if (result.member && result.member.createdAt === result.member.updatedAt) {
+                    summary.created++
+                  } else {
+                    summary.updated++
+                  }
+                }
+              } else {
+                summary.errors++
+                summary.errorDetails.push({
+                  row: rowData.rowIndex,
+                  email: rowData.user.email,
+                  error: result?.error || 'Error desconocido',
+                })
+              }
+            })
+          } else {
+            // Si la respuesta no es un array, contar como exitosos
+            summary.successful += formattedData.length
+            summary.created += formattedData.length
+          }
+        } catch (error: any) {
+          console.error(`✗ Error en batch ${index + 1}:`, error)
+          // Registrar error para todo el batch
+          formattedData.forEach((rowData) => {
+            summary.errors++
+            summary.errorDetails.push({
+              row: rowData.rowIndex,
+              email: rowData.user.email,
+              error:
+                error?.response?.data?.message || error?.message || 'Error al procesar el batch',
+            })
+          })
+        }
+
+        currentRowIndex += batch.length
+        processedCount += batch.length
+        const progress = Math.round((processedCount / totalRecords) * 100)
         setUploadProgress(progress)
       }
 
-      notification.success({ message: 'Usuarios cargados exitosamente' })
-      setBulkUploadModalOpen(false)
+      console.log('=== CARGA MASIVA COMPLETADA ===')
+      console.log('Resumen:', summary)
+
+      setUploadSummary(summary)
+
+      if (summary.errors === 0) {
+        notification.success({
+          message: `Carga completada exitosamente: ${summary.successful} registros procesados correctamente`,
+        })
+      } else if (summary.successful > 0) {
+        // No hay 'warning' en el helper de notificaciones; usar error para indicar fallos parciales.
+        notification.error({
+          message: `Carga completada con errores: ${summary.successful} exitosos, ${summary.errors} errores`,
+        })
+      } else {
+        notification.error({ message: 'Error en la carga: todos los registros fallaron' })
+      }
+
       await getEventUsersData()
     } catch (error) {
-      notification.error({
-        message: 'Error al procesar el archivo',
-      })
+      console.error('Error en carga masiva:', error)
+      notification.error({ message: 'Error al procesar el archivo' })
+      setUploadSummary(summary)
     } finally {
       setLoading(false)
       setUploadProgress(0)
+      // Limpiar el input file para permitir recargar el mismo archivo
+      if (eventAction.target) {
+        eventAction.target.value = ''
+      }
     }
   }
 
@@ -649,22 +891,133 @@ const DataTable: React.FC = () => {
 
       <Modal
         opened={isBulkUploadModalOpen}
-        onClose={() => setBulkUploadModalOpen(false)}
+        onClose={() => {
+          setBulkUploadModalOpen(false)
+          setUploadSummary(null)
+        }}
         title="Cargar Usuarios Masivamente"
+        size="lg"
       >
         <Flex direction="column" gap="md">
           <Button onClick={handleDownloadTemplate}>Descargar Template</Button>
           <input type="file" accept=".xlsx, .xls" onChange={handleFileUpload} />
         </Flex>
-        {uploadProgress > 0 && (
+
+        {uploadProgress > 0 && !uploadSummary && (
           <Box mt="md">
             <Text size="sm">Progreso de carga: {uploadProgress}%</Text>
             <Progress value={uploadProgress} size="lg" />
+          </Box>
+        )}
+
+        {uploadSummary && (
+          <Box mt="md" p="md" style={{ border: '1px solid #e0e0e0', borderRadius: '8px' }}>
+            <Text size="lg" fw={700} mb="md">
+              📊 Resumen de Carga
+            </Text>
+
+            <Grid gutter="md">
+              <Grid.Col span={6}>
+                <Box p="sm" style={{ backgroundColor: '#f0f9ff', borderRadius: '4px' }}>
+                  <Text size="sm" c="dimmed">
+                    Total de registros
+                  </Text>
+                  <Text size="xl" fw={700}>
+                    {uploadSummary.total}
+                  </Text>
+                </Box>
+              </Grid.Col>
+
+              <Grid.Col span={6}>
+                <Box p="sm" style={{ backgroundColor: '#f0fdf4', borderRadius: '4px' }}>
+                  <Text size="sm" c="dimmed">
+                    Exitosos
+                  </Text>
+                  <Text size="xl" fw={700} c="green">
+                    {uploadSummary.successful}
+                  </Text>
+                </Box>
+              </Grid.Col>
+
+              <Grid.Col span={6}>
+                <Box p="sm" style={{ backgroundColor: '#fffbeb', borderRadius: '4px' }}>
+                  <Text size="sm" c="dimmed">
+                    Creados
+                  </Text>
+                  <Text size="xl" fw={700} c="blue">
+                    {uploadSummary.created}
+                  </Text>
+                </Box>
+              </Grid.Col>
+
+              <Grid.Col span={6}>
+                <Box p="sm" style={{ backgroundColor: '#fef3f2', borderRadius: '4px' }}>
+                  <Text size="sm" c="dimmed">
+                    Actualizados
+                  </Text>
+                  <Text size="xl" fw={700} c="orange">
+                    {uploadSummary.updated}
+                  </Text>
+                </Box>
+              </Grid.Col>
+
+              {uploadSummary.errors > 0 && (
+                <Grid.Col span={12}>
+                  <Box p="sm" style={{ backgroundColor: '#fef2f2', borderRadius: '4px' }}>
+                    <Text size="sm" c="dimmed">
+                      Errores
+                    </Text>
+                    <Text size="xl" fw={700} c="red">
+                      {uploadSummary.errors}
+                    </Text>
+                  </Box>
+                </Grid.Col>
+              )}
+            </Grid>
+
+            {uploadSummary.errorDetails.length > 0 && (
+              <Box mt="md">
+                <Text size="md" fw={600} mb="sm" c="red">
+                  ⚠️ Detalles de Errores:
+                </Text>
+                <Box
+                  style={{
+                    maxHeight: '200px',
+                    overflowY: 'auto',
+                    border: '1px solid #fee2e2',
+                    borderRadius: '4px',
+                    padding: '8px',
+                    backgroundColor: '#fef2f2',
+                  }}
+                >
+                  {uploadSummary.errorDetails.map((error, idx) => (
+                    <Box key={idx} mb="xs" p="xs" style={{ borderBottom: '1px solid #fecaca' }}>
+                      <Text size="sm" fw={600}>
+                        Fila {error.row} - {error.email}
+                      </Text>
+                      <Text size="xs" c="dimmed">
+                        {error.error}
+                      </Text>
+                    </Box>
+                  ))}
+                </Box>
+              </Box>
+            )}
+
+            <Group justify="flex-end" mt="md">
+              <Button
+                onClick={() => {
+                  setBulkUploadModalOpen(false)
+                  setUploadSummary(null)
+                }}
+              >
+                Cerrar
+              </Button>
+            </Group>
           </Box>
         )}
       </Modal>
     </Container>
   )
 }
-
 export { DataTable }

@@ -206,7 +206,14 @@ const GenerateCertificate: FC = (): JSX.Element => {
           break
         case 'attribute':
           // Asegúrate de que `element.text` no sea `null` o `undefined`
-          const attributeText = String(attendee?.memberId?.properties[element.text || ''] ?? '')
+          let attributeText = ''
+          // Si element.text es igual al nombre del evento, usa ese valor directamente
+          if (element.text === attendee?.eventId?.name) {
+            attributeText = attendee?.eventId?.name || ''
+          } else {
+            // Si no, buscar en las propiedades del asistente
+            attributeText = String(attendee?.memberId?.properties[element.text || ''] ?? '')
+          }
           appendAttributeObject({ ...element, text: attributeText })
           break
         case 'image':
