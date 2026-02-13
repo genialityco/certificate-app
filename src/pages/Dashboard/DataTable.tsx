@@ -36,9 +36,18 @@ import notification from '@/utils/notification'
 
 interface EventProperty {
   label: string
-  organizationId: string
+  organizationId?: string
+  name: string
+  type?: string
+  required: boolean
+  show?: boolean
+}
+
+interface PropertyHeader {
+  label: string
   fieldName: string
   required: boolean
+  organizationId: string
 }
 
 interface OrganizationData {
@@ -69,7 +78,7 @@ const DataTable: React.FC = () => {
   const [page, setPage] = useState<number>(1)
   const [perPage, setPerPage] = useState<number>(10)
   const [totalPages, setTotalPages] = useState<number>(1)
-  const [propertyHeadersApi, setPropertyHeadersApi] = useState<EventProperty[]>([])
+  const [propertyHeadersApi, setPropertyHeadersApi] = useState<PropertyHeader[]>([])
   const [searchTerm, setSearchTerm] = useState<string>('')
   const [debouncedSearchTerm] = useDebouncedValue(searchTerm, 300)
   const [modalState, setModalState] = useState<{
@@ -148,7 +157,7 @@ const DataTable: React.FC = () => {
         // Aplicar filtro por nombre/correo sobre todos los registros
         const matched = allItems.filter((it) => {
           try {
-            const props = it?.memberId?.properties || {}
+            const props = it?.memberId?.properties || it?.properties || {}
             const combined = Object.values(props)
               .filter((v) => typeof v === 'string' || typeof v === 'number')
               .map((v) => String(v).toLowerCase())
@@ -180,9 +189,12 @@ const DataTable: React.FC = () => {
         const filters: any = { eventId: eventId, page: page, limit: perPage }
         const response = await searchAttendees(filters)
 
+
+
         if (response.status === 'success') {
           setUsers(response.data.items as EventUser[])
           setTotalPages(response.data.totalPages)
+
         } else if (
           response.status === 'error' &&
           response.message === 'No se encontraron asistentes'
@@ -222,11 +234,12 @@ const DataTable: React.FC = () => {
     if (!properties || !Array.isArray(properties)) {
       return
     }
+
     const headers = properties
-      .filter((property) => property.fieldName !== 'password')
+      .filter((property) => property.name !== 'password')
       .map((property) => ({
         label: property.label,
-        fieldName: property.fieldName,
+        fieldName: property.name,
         required: property.required,
         organizationId,
       }))
@@ -339,7 +352,7 @@ const DataTable: React.FC = () => {
       const updatedData = propertyHeadersApi.reduce(
         (acc, header) => ({
           ...acc,
-          [header.fieldName]: user?.memberId.properties[header.fieldName] || '',
+          [header.fieldName]: user?.memberId?.properties?.[header.fieldName] || user?.properties?.[header.fieldName] || '',
         }),
         {} as Record<string, string | boolean>,
       )
@@ -800,27 +813,34 @@ const DataTable: React.FC = () => {
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
-                {users.map((item) => (
-                  <Table.Tr key={item._id}>
-                    {propertyHeadersApi.map((header) => (
-                      <Table.Td key={`${item._id}-${header.fieldName}`}>
-                        {item?.memberId?.properties[header.fieldName] || ''}
+                {users.map((item) => {
+
+                  return (
+                    <Table.Tr key={item._id}>
+                      {propertyHeadersApi.map((header) => {
+                        const valor = item?.memberId?.properties?.[header.fieldName] || item?.properties?.[header.fieldName] || ''
+
+                        return (
+                          <Table.Td key={`${item._id}-${header.fieldName}`}>
+                            {valor}
+                          </Table.Td>
+                        )
+                      })}
+                      <Table.Td>
+                        <Group>
+                          <Flex>
+                            <ActionIcon onClick={() => openModal('edit', item)} mr="xs">
+                              <IconEdit />
+                            </ActionIcon>
+                            <ActionIcon color="red" onClick={() => handleDeleteUser(item._id, item)}>
+                              <IconLockCancel />
+                            </ActionIcon>
+                          </Flex>
+                        </Group>
                       </Table.Td>
-                    ))}
-                    <Table.Td>
-                      <Group>
-                        <Flex>
-                          <ActionIcon onClick={() => openModal('edit', item)} mr="xs">
-                            <IconEdit />
-                          </ActionIcon>
-                          <ActionIcon color="red" onClick={() => handleDeleteUser(item._id, item)}>
-                            <IconLockCancel />
-                          </ActionIcon>
-                        </Flex>
-                      </Group>
-                    </Table.Td>
-                  </Table.Tr>
-                ))}
+                    </Table.Tr>
+                  )
+                })}
               </Table.Tbody>
             </Table>
           ) : (
