@@ -33,6 +33,7 @@ const UserDetail: FC = () => {
   const [user, setUser] = useState<any>(null)
   const [certificates, setCertificates] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const validCertificates = certificates.filter((cert) => cert?.eventId?._id)
 
   useEffect(() => {
     const fetchData = async () => {
@@ -96,8 +97,8 @@ const UserDetail: FC = () => {
             <IconCertificate size={24} style={{ marginRight: 5 }} />
             Certificados
           </Title>
-          {certificates.length > 0 ? (
-            certificates.map((cert) => (
+          {validCertificates.length > 0 ? (
+            validCertificates.map((cert) => (
               <Card
                 key={cert._id}
                 shadow="lg"
@@ -119,7 +120,7 @@ const UserDetail: FC = () => {
                   <Flex align="center" gap="10px">
                     <IconCertificate size={32} color="white" />
                     <Text fw={600} size="lg">
-                      {cert.eventId.name}
+                      {cert.eventId?.name ?? 'Evento sin nombre'}
                     </Text>
                   </Flex>
                 </Flex>
