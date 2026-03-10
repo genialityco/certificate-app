@@ -128,6 +128,16 @@ const UserDetail: FC = () => {
                 <Text size="sm" mt="xs" color="white">
                   Horas: {cert.certificationHours}
                 </Text>
+                
+                {cert.eventId?.startDate && (
+                  <Text size="sm" mt="xs" color="white">
+                    Fecha: {new Date(cert.eventId.startDate).toLocaleDateString('es-ES', {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric'
+                    })}
+                  </Text>
+                )}
 
                 <Button
                   variant="white"
