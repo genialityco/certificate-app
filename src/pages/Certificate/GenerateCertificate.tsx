@@ -83,7 +83,7 @@ const GenerateCertificate: FC = (): JSX.Element => {
       let resultAttendee
 
       // Filtro principal para userId (o memberId) + eventId + attended
-      const filtersByUserId = { userId: attendeeId, attended: true }
+      const filtersByUserId = { userId: attendeeId, eventId: finalEventId, attended: true }
       resultAttendee = await searchAttendees(filtersByUserId)
       setAttendeeIdType('memberId')
       // Si no se encontró por userId, intentamos por memberId
