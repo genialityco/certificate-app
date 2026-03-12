@@ -38,6 +38,7 @@ interface EventProperty {
   label: string
   organizationId: string
   fieldName: string
+  name?: string
   required: boolean
 }
 
@@ -117,6 +118,43 @@ const DataTable: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedSearchTerm])
 
+  useEffect(() => {
+    if (!propertyHeadersApi.length || !users.length) return
+
+    const targetHeaders = propertyHeadersApi.filter((h) => {
+      const label = String(h.label || '').toLowerCase()
+      const field = String(h.fieldName || '').toLowerCase()
+      return (
+        label.includes('categoria') ||
+        label.includes('categoría') ||
+        label.includes('horas') ||
+        field.includes('typeattendee') ||
+        field.includes('certificationhours')
+      )
+    })
+
+    if (!targetHeaders.length) return
+
+    console.group('🧪 DEBUG TABLA - Categoria/Horas')
+    console.table(
+      targetHeaders.map((h) => ({
+        label: h.label,
+        fieldName: h.fieldName,
+      })),
+    )
+
+    console.table(
+      users.slice(0, 10).map((u) => ({
+        attendeeId: u._id,
+        attendee_typeAttendee: u.typeAttendee,
+        attendee_certificationHours: u.certificationHours,
+        member_typeAttendee: u?.memberId?.properties?.typeAttendee,
+        member_certificationHours: u?.memberId?.properties?.certificationHours,
+      })),
+    )
+    console.groupEnd()
+  }, [propertyHeadersApi, users])
+
   const getEventUsersData = async () => {
     try {
       setLoading(true)
@@ -181,6 +219,19 @@ const DataTable: React.FC = () => {
         const response = await searchAttendees(filters)
 
         if (response.status === 'success') {
+          console.group('👥 DATOS CARGADOS - VALIDACIÓN CATEGORÍA/HORAS')
+          console.warn('Total asistentes página:', response.data.items?.length || 0)
+          console.table(
+            (response.data.items || []).slice(0, 10).map((u: EventUser) => ({
+              attendeeId: u._id,
+              attendee_typeAttendee: u.typeAttendee,
+              attendee_certificationHours: u.certificationHours,
+              member_typeAttendee: u?.memberId?.properties?.typeAttendee,
+              member_certificationHours: u?.memberId?.properties?.certificationHours,
+            })),
+          )
+          console.groupEnd()
+
           setUsers(response.data.items as EventUser[])
           setTotalPages(response.data.totalPages)
         } else if (
@@ -207,6 +258,18 @@ const DataTable: React.FC = () => {
       const responseOrg = await fetchOrganizationById(responseEvent.data.organizationId)
       const result = responseOrg.data
       if (result) {
+        console.group('📋 PROPIEDADES DE ORGANIZACIÓN - DEBUG')
+        console.warn('organizationId:', responseEvent.data.organizationId)
+        console.table(
+          (result.propertiesDefinition || []).map((p: EventProperty) => ({
+            label: p.label,
+            fieldName: p.fieldName,
+            name: p.name,
+            required: p.required,
+          })),
+        )
+        console.groupEnd()
+
         setEvent(responseEvent.data as EventData)
         setOrganization(result)
         filterHeadTable(result.propertiesDefinition, responseEvent.data.organizationId)
@@ -222,15 +285,51 @@ const DataTable: React.FC = () => {
     if (!properties || !Array.isArray(properties)) {
       return
     }
+    const seen = new Set<string>()
     const headers = properties
-      .filter((property) => property.fieldName !== 'password')
+      .filter((property) => {
+        const resolvedField = property.fieldName || property.name || ''
+        if (!resolvedField || resolvedField === 'password' || seen.has(resolvedField)) return false
+        seen.add(resolvedField)
+        return true
+      })
       .map((property) => ({
         label: property.label,
-        fieldName: property.fieldName,
+        fieldName: property.fieldName || property.name || '',
         required: property.required,
         organizationId,
       }))
     setPropertyHeadersApi(headers)
+  }
+
+  const resolveCellValue = (user: EventUser, header: EventProperty): string | boolean => {
+    const fieldName = String(header.fieldName || header.name || '')
+    const normalizedLabel = String(header.label || '').toLowerCase()
+    const memberProps = user?.memberId?.properties || {}
+    const directProps = user?.properties || {}
+
+    const isCertificationHoursField =
+      fieldName === 'certificationHours' || normalizedLabel.includes('horas')
+
+    if (isCertificationHoursField) {
+      return (
+        user?.certificationHours ??
+        directProps?.certificationHours ??
+        memberProps?.certificationHours ??
+        ''
+      )
+    }
+
+    const isTypeAttendeeField =
+      fieldName === 'typeAttendee' ||
+      normalizedLabel.includes('categoria') ||
+      normalizedLabel.includes('categoría')
+
+    if (isTypeAttendeeField) {
+      return user?.typeAttendee ?? directProps?.typeAttendee ?? memberProps?.typeAttendee ?? ''
+    }
+
+    return memberProps[fieldName] ?? directProps[fieldName] ?? (user as any)[fieldName] ?? ''
   }
 
   const handleInputChange = (fieldName: string, value: string | boolean) => {
@@ -339,7 +438,7 @@ const DataTable: React.FC = () => {
       const updatedData = propertyHeadersApi.reduce(
         (acc, header) => ({
           ...acc,
-          [header.fieldName]: user?.memberId.properties[header.fieldName] || '',
+          [header.fieldName]: resolveCellValue(user, header),
         }),
         {} as Record<string, string | boolean>,
       )
@@ -804,7 +903,7 @@ const DataTable: React.FC = () => {
                   <Table.Tr key={item._id}>
                     {propertyHeadersApi.map((header) => (
                       <Table.Td key={`${item._id}-${header.fieldName}`}>
-                        {item?.memberId?.properties[header.fieldName] || ''}
+                        {String(resolveCellValue(item, header))}
                       </Table.Td>
                     ))}
                     <Table.Td>
