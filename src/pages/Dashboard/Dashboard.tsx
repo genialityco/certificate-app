@@ -53,27 +53,36 @@ const Dashboard: FC = (): JSX.Element => {
   const fetchEvents = async () => {
     const filters = { organizationId, limit: 100 }
     const response = await searchEvents(filters)
-    const data = response.data?.items ? response.data?.items : []
-    setEvents(data as MyEvent[])
-    data.forEach((event: MyEvent) => {
-      checkCertificate(event._id)
-    })
-  }
+    const data = (response.data?.items ? response.data?.items : []) as MyEvent[]
 
-  const checkCertificate = async (eventId: string) => {
-    const filters = { eventId }
-    const response = await searchCertificates(filters)
-    if (response && response.data?.length > 0) {
-      setCertificates((prevCertificates) => ({
-        ...prevCertificates,
-        [eventId]: response.data[0] as unknown as Certificate | null,
-      }))
-    } else {
-      setCertificates((prevCertificates) => ({
-        ...prevCertificates,
-        [eventId]: null,
-      }))
+    // Cargar el certificado de cada evento (si existe) antes de ordenar
+    const certEntries = await Promise.all(
+      data.map(async (event) => {
+        const certResponse = await searchCertificates({ eventId: event._id })
+        const cert =
+          certResponse && certResponse.data?.length > 0
+            ? (certResponse.data[0] as unknown as Certificate)
+            : null
+        return [event._id, cert] as const
+      }),
+    )
+    const certMap = Object.fromEntries(certEntries) as Record<string, Certificate | null>
+    setCertificates(certMap)
+
+    // Fecha efectiva: la del certificado si existe; si no, la de creación del evento.
+    // Se ordena del más reciente al más antiguo.
+    const getEffectiveTime = (event: MyEvent) => {
+      const cert = certMap[event._id] as any
+      const dateStr =
+        cert?.createdAt ??
+        cert?.updatedAt ??
+        (event as any)?.createdAt ??
+        (event as any)?.updatedAt
+      return new Date(dateStr ?? 0).getTime()
     }
+    const sortedData = data.slice().sort((a, b) => getEffectiveTime(b) - getEffectiveTime(a))
+
+    setEvents(sortedData)
   }
 
   const handleCreateCertificate = async () => {
@@ -207,6 +216,27 @@ const Dashboard: FC = (): JSX.Element => {
               style={{ position: 'relative' }}
             >
               <Text size="lg">{event.name}</Text>
+              {(() => {
+                const cert = certificates[event._id] as any
+                const hasCert = !!cert
+                const dateStr = hasCert
+                  ? (cert.createdAt ?? cert.updatedAt)
+                  : ((event as any).createdAt ?? (event as any).updatedAt)
+                if (!dateStr) return null
+                return (
+                  <Text size="sm" c="dimmed">
+                    {hasCert
+                      ? 'Fecha de subida del certificado'
+                      : 'Fecha de creación del evento (sin certificado)'}
+                    :{' '}
+                    {new Date(dateStr).toLocaleDateString('es-ES', {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                    })}
+                  </Text>
+                )
+              })()}
               <Button
                 mt="md"
                 fullWidth
