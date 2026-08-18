@@ -43,7 +43,7 @@ const GenerateCertificate: FC = (): JSX.Element => {
   const location = useLocation()
   const { eventId: eventIdFromLocation } = location.state || {}
 
-  const [attendeeIdType, setAttendeeIdType] = useState<'userId' | 'memberId' | null>('userId')
+  const [, setAttendeeIdType] = useState<'userId' | 'memberId' | null>('userId')
 
   // --------------------------------------------------------
   //   1) Determinar si certificateId es un evento o un certificado
@@ -249,8 +249,9 @@ const GenerateCertificate: FC = (): JSX.Element => {
   const downloadCanvas = async (type: 'png' | 'jpg' | 'pdf') => {
     try {
       // 1. Actualizar certificateDownloads (y attended si aplica)
-      if (attendee && attendeeIdType) {
-        await incrementCertificateDownload({ attendeeId: certificateId })
+      // Debe enviarse el _id del documento Attendee, NO el certificateId/eventId de la URL
+      if (attendee?._id) {
+        await incrementCertificateDownload({ attendeeId: attendee._id })
       }
 
       // 2. Continuar con la descarga del canvas
