@@ -346,10 +346,18 @@ const DataTable: React.FC = () => {
     try {
       // 1. Obtener y validar datos
       const email = (newUserData.email as string)?.trim().toLowerCase()
-      const password = String(newUserData.idNumber || newUserData.password || 'achoapp')
+      const password = resolveDocumentPassword(newUserData.idNumber ?? newUserData.numberId)
 
       if (!email) {
         notification.error({ message: 'El email es requerido' })
+        return
+      }
+
+      if (!password) {
+        notification.error({
+          message:
+            'El número de documento es requerido y debe tener al menos 6 caracteres: es la contraseña con la que el asistente ingresa a la app.',
+        })
         return
       }
 
@@ -546,6 +554,33 @@ const DataTable: React.FC = () => {
     return ''
   }
 
+  // Valores basura que aparecen en la columna de documento y que nunca deben
+  // terminar siendo la contraseña de Firebase.
+  const INVALID_DOCUMENT_VALUES = [
+    '',
+    'n/a',
+    'na',
+    'null',
+    'undefined',
+    'achoapp',
+    'no aplica',
+    'ninguno',
+    '-',
+    '0',
+  ]
+
+  // La contraseña de un asistente ES su número de documento. Si el documento no
+  // sirve (vacío, basura o menor a 6 caracteres, que Firebase rechaza) devolvemos
+  // null para que el registro se reporte como error en vez de crear una cuenta
+  // con una contraseña que el usuario jamás va a adivinar.
+  const resolveDocumentPassword = (rawDocument: unknown): string | null => {
+    if (rawDocument === null || rawDocument === undefined) return null
+    const document = String(rawDocument).trim()
+    if (INVALID_DOCUMENT_VALUES.includes(document.toLowerCase())) return null
+    if (document.length < 6) return null
+    return document
+  }
+
   const handleFileUpload = async (eventAction: React.ChangeEvent<HTMLInputElement>) => {
     const file = eventAction.target.files?.[0]
     if (!file) return
@@ -607,6 +642,20 @@ const DataTable: React.FC = () => {
             'ID',
             'IDENTIFICACION',
             'IDENTIFICACIÓN',
+            'NUMERO DE IDENTIFICACION',
+            'NÚMERO DE IDENTIFICACIÓN',
+            'NUMERO IDENTIFICACION',
+            'NO. DOCUMENTO',
+            'NO DOCUMENTO',
+            'NRO DOCUMENTO',
+            'N° DOCUMENTO',
+            'DOCUMENTO',
+            'DOCUMENTO DE IDENTIDAD',
+            'CC',
+            'C.C.',
+            'IDNUMBER',
+            'NUMBERID',
+            'ID NUMBER',
           ]
 
           const namesPossibleNames = ['NOMBRES', 'NOMBRE', 'PRIMER NOMBRE', 'NOMBRE COMPLETO']
@@ -678,7 +727,6 @@ const DataTable: React.FC = () => {
           const attended = certificateValue !== '' && certificateValue.toLowerCase() !== 'no'
 
           const cleanEmail = email.split(',')[0].trim().toLowerCase()
-          const password = String(idNumber || 'achoapp')
 
           // Formato esperado por addOrCreateAttendee
           // Construir propiedades del miembro mapeando a los fieldName que provee la API
@@ -687,7 +735,6 @@ const DataTable: React.FC = () => {
             fullName,
             phone,
             email: cleanEmail,
-            password,
             specialty: categoryMember,
           }
 
@@ -738,13 +785,20 @@ const DataTable: React.FC = () => {
             Object.assign(memberProperties, memberPropsBasic)
           }
 
+          // El documento puede haber llegado por el mapeo de headers de la API
+          // (memberProperties) aunque no coincidiera con idNumberPossibleNames.
+          const password = resolveDocumentPassword(
+            idNumber || memberProperties.idNumber || memberProperties.numberId,
+          )
+
           // Asegurar que email y password siempre existan en properties
           memberProperties.email = memberProperties.email || cleanEmail
-          memberProperties.password = memberProperties.password || password
+          memberProperties.password = password ?? ''
 
           return {
             rowIndex: globalRowIndex + 2, // +2 porque Excel empieza en 1 y tiene header
-            user: { email: cleanEmail, password: password },
+            invalidDocument: password === null,
+            user: { email: cleanEmail, password: password ?? '' },
             attendee: {
               eventId: eventId || '',
               attended: attended,
@@ -762,10 +816,32 @@ const DataTable: React.FC = () => {
 
         console.log(`Registros formateados en batch: ${formattedData.length}`)
 
+        // Las filas sin documento válido no se envían: crearían una cuenta de
+        // Firebase con una contraseña que el asistente no puede deducir.
+        const validRows = formattedData.filter((rowData) => !rowData.invalidDocument)
+        formattedData
+          .filter((rowData) => rowData.invalidDocument)
+          .forEach((rowData) => {
+            summary.errors++
+            summary.errorDetails.push({
+              row: rowData.rowIndex,
+              email: rowData.user.email,
+              error:
+                'Sin número de documento válido (mínimo 6 caracteres). La contraseña es el documento, así que la fila se omitió.',
+            })
+          })
+
+        if (validRows.length === 0) {
+          currentRowIndex += batch.length
+          processedCount += batch.length
+          setUploadProgress(Math.round((processedCount / totalRecords) * 100))
+          continue
+        }
+
         // Enviar el batch al servicio
         try {
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
-          const dataToSend = formattedData.map(({ rowIndex, ...data }) => data)
+          const dataToSend = validRows.map(({ rowIndex, invalidDocument, ...data }) => data)
           const response = await addOrCreateAttendee(dataToSend)
 
           console.log(`✓ Batch ${index + 1} procesado exitosamente`)
@@ -774,7 +850,7 @@ const DataTable: React.FC = () => {
           // Analizar respuesta para el resumen
           if (response.status === 'success' && Array.isArray(response.data)) {
             response.data.forEach((result: any, idx: number) => {
-              const rowData = formattedData[idx]
+              const rowData = validRows[idx]
               if (result && !result.error) {
                 summary.successful++
                 // Determinar si fue creado o actualizado basado en la respuesta
@@ -797,13 +873,13 @@ const DataTable: React.FC = () => {
             })
           } else {
             // Si la respuesta no es un array, contar como exitosos
-            summary.successful += formattedData.length
-            summary.created += formattedData.length
+            summary.successful += validRows.length
+            summary.created += validRows.length
           }
         } catch (error: any) {
           console.error(`✗ Error en batch ${index + 1}:`, error)
           // Registrar error para todo el batch
-          formattedData.forEach((rowData) => {
+          validRows.forEach((rowData) => {
             summary.errors++
             summary.errorDetails.push({
               row: rowData.rowIndex,
