@@ -18,7 +18,7 @@ import {
   TextInput,
 } from '@mantine/core'
 import { showNotification } from '@mantine/notifications'
-import { IconPlus, IconTrash } from '@tabler/icons-react'
+import { IconCopy, IconPlugConnected, IconPlus, IconTrash } from '@tabler/icons-react'
 
 import { searchCertificates } from '@/services/api/certificateService'
 import { Event, createEvent, deleteEvent, searchEvents } from '@/services/api/eventService'
@@ -93,6 +93,32 @@ const Dashboard: FC = (): JSX.Element => {
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error('Error creando evento:', error)
+    }
+  }
+
+  // URL pública del evento para pegar en Gen Live (ver /integracion/:organizationId/:eventId).
+  // Lleva los dos ids que Gen Live necesita para apuntar sus certificados a este
+  // evento y montar acá a los inscritos.
+  const buildIntegrationUrl = (eventId: string) =>
+    `${window.location.origin}/integracion/${organizationId}/${eventId}`
+
+  const handleCopyIntegrationUrl = async (eventId: string) => {
+    const url = buildIntegrationUrl(eventId)
+    try {
+      await navigator.clipboard.writeText(url)
+      showNotification({
+        color: 'green',
+        title: 'URL copiada',
+        message: 'Pégala en Gen Live, en Control → Certificados de asistencia.',
+      })
+    } catch {
+      // clipboard bloqueado (http, permisos): al menos mostramos la URL para copiarla a mano
+      showNotification({
+        color: 'yellow',
+        title: 'No se pudo copiar automáticamente',
+        message: url,
+        autoClose: false,
+      })
     }
   }
 
@@ -273,6 +299,24 @@ const Dashboard: FC = (): JSX.Element => {
               <Button mt="md" fullWidth onClick={() => navigate(`/event/analytics/${event._id}`)}>
                 Informe de descargas
               </Button>
+              <Group mt="md" gap="xs" wrap="nowrap">
+                <Button
+                  flex={1}
+                  variant="light"
+                  leftSection={<IconCopy size={16} />}
+                  onClick={() => handleCopyIntegrationUrl(event._id)}
+                >
+                  URL para Gen Live
+                </Button>
+                <ActionIcon
+                  variant="light"
+                  size="lg"
+                  aria-label="Ver página de integración"
+                  onClick={() => navigate(`/integracion/${organizationId}/${event._id}`)}
+                >
+                  <IconPlugConnected size={18} />
+                </ActionIcon>
+              </Group>
               <ActionIcon
                 c="red"
                 variant="white"

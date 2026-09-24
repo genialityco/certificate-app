@@ -95,6 +95,15 @@ const RouterStack = createBrowserRouter(
         }}
       />
       <Route
+        path="/integracion/:organizationId/:eventId"
+        lazy={async () => {
+          const { EventIntegration } = await import('@/pages/Integration')
+          return {
+            Component: EventIntegration,
+          }
+        }}
+      />
+      <Route
         path="/organization/:organizationId"
         lazy={async () => {
           const { OrganizationLanding } = await import('@/pages/OrganizationLanding')
