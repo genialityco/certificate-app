@@ -27,6 +27,28 @@ import {
 import { searchAttendees } from '@/services/api/attendeeService'
 import { fetchMemberById } from '@/services/api/memberService'
 
+const PAGE_SIZE = 100
+
+/**
+ * Trae todos los certificados del miembro. El backend pagina de 10 en 10 si no
+ * se le manda limit, asi que hay que recorrer las paginas: hay miembros con mas
+ * de 70 certificados.
+ */
+const fetchAllAttendees = async (memberId: string) => {
+  const items: any[] = []
+  let page = 1
+  let totalPages = 1
+
+  do {
+    const res = await searchAttendees({ memberId, attended: true, page, limit: PAGE_SIZE })
+    items.push(...(res?.data?.items ?? []))
+    totalPages = res?.data?.totalPages ?? 1
+    page += 1
+  } while (page <= totalPages)
+
+  return items
+}
+
 const UserDetail: FC = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -41,8 +63,7 @@ const UserDetail: FC = () => {
         const memberData = await fetchMemberById(id as string)
         if (memberData?.data) {
           setUser(memberData.data)
-          const attendeeData = await searchAttendees({ memberId: id, attended: true })
-          setCertificates(attendeeData?.data?.items ?? [])
+          setCertificates(await fetchAllAttendees(id as string))
         }
       } catch (error) {
         showNotification({
