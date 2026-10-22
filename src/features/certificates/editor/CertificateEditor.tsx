@@ -14,6 +14,7 @@ import {
 } from '@mantine/core'
 import { IconArrowBackUp, IconArrowForwardUp, IconDeviceFloppy, IconEye } from '@tabler/icons-react'
 
+import { formatEventName } from '@/features/admin/format'
 import { saveEventCertificate, uploadImage } from '@/services/api/certificateAdminService'
 import fileToBase64 from '@/utils/fileToBase64'
 import generateUniqueId from '@/utils/generateUniqueId'
@@ -274,7 +275,7 @@ export function CertificateEditor({ eventId, eventName, certificate, onSaved }: 
       >
         <Group justify="space-between">
           <Group gap="xs">
-            <Text fw={700}>{eventName}</Text>
+            <Text fw={700}>{formatEventName(eventName)}</Text>
             {dirty ? (
               <Badge color="orange" variant="light">
                 Cambios sin guardar

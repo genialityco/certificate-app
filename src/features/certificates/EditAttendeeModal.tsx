@@ -16,6 +16,7 @@ import {
 import { useDebouncedValue } from '@mantine/hooks'
 import { IconDeviceFloppy, IconDownload, IconInfoCircle } from '@tabler/icons-react'
 
+import { formatEventName } from '@/features/admin/format'
 import { fetchRenderData, updateAttendeeData } from '@/services/api/certificateAdminService'
 import notification from '@/utils/notification'
 
@@ -134,7 +135,11 @@ export function EditAttendeeModal({ attendeeId, onClose, onSaved }: Props) {
       onClose={onClose}
       size="90%"
       centered
-      title={<Text fw={700}>Certificado {data?.event?.name ? `· ${data.event.name}` : ''}</Text>}
+      title={
+        <Text fw={700}>
+          Certificado {data?.event?.name ? `· ${formatEventName(data.event.name)}` : ''}
+        </Text>
+      }
     >
       {error && <Alert color="red">{error}</Alert>}
       {!data && !error && (

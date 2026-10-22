@@ -21,6 +21,7 @@ import {
   IconUpload,
 } from '@tabler/icons-react'
 
+import { formatPersonName } from '@/features/admin/format'
 import { bulkUploadAttendees } from '@/services/api/certificateAdminService'
 
 import { fieldLabel } from '../fields'
@@ -259,7 +260,7 @@ export function BulkUploadModal({ opened, onClose, eventId, eventName, fields, o
                     {notable.map((r) => (
                       <Table.Tr key={`${r.row}-${r.status}`}>
                         <Table.Td>{r.row}</Table.Td>
-                        <Table.Td>{r.fullName}</Table.Td>
+                        <Table.Td>{formatPersonName(r.fullName)}</Table.Td>
                         <Table.Td>
                           <Badge color={STATUS_LABEL[r.status].color} variant="light">
                             {STATUS_LABEL[r.status].label}

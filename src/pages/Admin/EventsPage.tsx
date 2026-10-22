@@ -18,6 +18,7 @@ import { IconPalette, IconPlus, IconSearch, IconUsers } from '@tabler/icons-reac
 
 import { AdminPage } from '@/features/admin/AdminLayout'
 import { ListPager, usePagedList } from '@/features/admin/ListPager'
+import { EventNameLink } from '@/features/admin/format'
 import { createEvent } from '@/services/api/certificateAdminService'
 import notification from '@/utils/notification'
 
@@ -82,7 +83,7 @@ export function EventsPage() {
                   {visible.map((event) => (
                     <Table.Tr key={event._id}>
                       <Table.Td>
-                        <Text fw={600}>{event.name}</Text>
+                        <EventNameLink eventId={event._id} name={event.name} />
                       </Table.Td>
                       <Table.Td>{formatDate(event.startDate)}</Table.Td>
                       <Table.Td>

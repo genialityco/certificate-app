@@ -21,6 +21,7 @@ import { IconDownload, IconEdit, IconPencil } from '@tabler/icons-react'
 import { AdminPage } from '@/features/admin/AdminLayout'
 import { EditMemberModal } from '@/features/admin/EditMemberModal'
 import { ListPager, usePagedList } from '@/features/admin/ListPager'
+import { EventNameLink, formatPersonName } from '@/features/admin/format'
 import { EditAttendeeModal } from '@/features/certificates/EditAttendeeModal'
 import { downloadAttendeeCertificate } from '@/features/certificates/download'
 import { MEMBER_FIELDS } from '@/features/certificates/fields'
@@ -72,7 +73,7 @@ export function MemberDetailPage() {
 
   return (
     <AdminPage
-      title={props.fullName || 'Miembro'}
+      title={formatPersonName(props.fullName)}
       description={
         <Anchor component={Link} to={`/admin/org/${organizationId}/members`} size="sm" c="brand.7">
           ← Miembros
@@ -152,7 +153,7 @@ export function MemberDetailPage() {
                       <Table.Tr key={cert._id} style={{ opacity: cert.attended ? 1 : 0.5 }}>
                         <Table.Td>
                           <Text fw={600} size="sm">
-                            {cert.event?.name ?? 'Evento eliminado'}
+                            <EventNameLink eventId={cert.event?._id} name={cert.event?.name} />
                           </Text>
                           {!cert.hasCertificate && (
                             <Badge size="xs" color="gray" variant="light">

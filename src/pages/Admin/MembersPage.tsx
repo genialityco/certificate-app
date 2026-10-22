@@ -21,6 +21,7 @@ import {
 } from '@tabler/icons-react'
 
 import { AdminPage } from '@/features/admin/AdminLayout'
+import { formatPersonName } from '@/features/admin/format'
 import { type MemberDoc, type Paginated } from '@/features/certificates/types'
 import { type MemberSort, searchOrganizationMembers } from '@/services/api/certificateAdminService'
 
@@ -109,7 +110,7 @@ export function MembersPage() {
                       style={{ cursor: 'pointer' }}
                       onClick={() => navigate(`/admin/org/${organizationId}/members/${member._id}`)}
                     >
-                      <Table.Td fw={600}>{member.properties?.fullName || '—'}</Table.Td>
+                      <Table.Td fw={600}>{formatPersonName(member.properties?.fullName)}</Table.Td>
                       <Table.Td>{member.properties?.idNumber || '—'}</Table.Td>
                       <Table.Td>{member.properties?.email || '—'}</Table.Td>
                       <Table.Td>{member.properties?.phone || '—'}</Table.Td>

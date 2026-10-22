@@ -31,6 +31,7 @@ import {
 } from '@tabler/icons-react'
 
 import { AdminPage } from '@/features/admin/AdminLayout'
+import { EventNameLink, formatPersonName } from '@/features/admin/format'
 import { EditAttendeeModal } from '@/features/certificates/EditAttendeeModal'
 import { BulkUploadModal } from '@/features/certificates/bulk/BulkUploadModal'
 import { downloadAttendeeCertificate } from '@/features/certificates/download'
@@ -105,7 +106,13 @@ export function EventAttendeesPage() {
 
   return (
     <AdminPage
-      title={eventName || 'Asistentes'}
+      title={
+        eventId && eventName ? (
+          <EventNameLink eventId={eventId} name={eventName} fw={800} />
+        ) : (
+          'Asistentes'
+        )
+      }
       description={
         <Anchor component={Link} to={`/admin/org/${organizationId}/events`} size="sm" c="brand.7">
           ← Eventos
@@ -184,7 +191,9 @@ export function EventAttendeesPage() {
                     <Table.Tr key={attendee._id} style={{ opacity: attendee.attended ? 1 : 0.5 }}>
                       {MEMBER_FIELDS.map((f) => (
                         <Table.Td key={f.key}>
-                          {attendee.member?.properties?.[f.key] ?? '—'}
+                          {f.key === 'fullName'
+                            ? formatPersonName(attendee.member?.properties?.fullName)
+                            : attendee.member?.properties?.[f.key] ?? '—'}
                         </Table.Td>
                       ))}
                       {fields.map((f) => (

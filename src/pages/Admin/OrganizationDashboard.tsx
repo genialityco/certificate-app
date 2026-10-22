@@ -11,6 +11,7 @@ import {
 } from '@tabler/icons-react'
 
 import { AdminPage } from '@/features/admin/AdminLayout'
+import { EventNameLink } from '@/features/admin/format'
 
 import { formatDate, useOrganizationEvents } from './useOrganizationEvents'
 
@@ -157,14 +158,7 @@ export function OrganizationDashboard() {
                   .map((event) => (
                     <Table.Tr key={event._id}>
                       <Table.Td>
-                        <Text
-                          component={Link}
-                          to={`${base}/events/${event._id}/attendees`}
-                          fw={600}
-                          c="brand.7"
-                        >
-                          {event.name}
-                        </Text>
+                        <EventNameLink eventId={event._id} name={event.name} />
                       </Table.Td>
                       <Table.Td>{formatDate(event.startDate)}</Table.Td>
                       <Table.Td>
