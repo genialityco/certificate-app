@@ -47,8 +47,16 @@ const RouterStack = createBrowserRouter(
           }
         }}
       />
+      {/* El editor anterior creaba certificados duplicados: ahora lleva al nuevo */}
       <Route
         path="/design/:eventId"
+        lazy={async () => {
+          const { DesignRedirect } = await import('@/pages/Admin/DesignRedirect')
+          return { Component: DesignRedirect }
+        }}
+      />
+      <Route
+        path="/design-legacy/:eventId"
         lazy={async () => {
           const { Design } = await import('@/pages/Design')
           return {
@@ -56,6 +64,72 @@ const RouterStack = createBrowserRouter(
           }
         }}
       />
+      <Route
+        path="/consulta/:organizationId"
+        lazy={async () => {
+          const { ConsultPage } = await import('@/pages/Public/ConsultPage')
+          return { Component: ConsultPage }
+        }}
+      />
+      <Route
+        path="/admin"
+        lazy={async () => {
+          const { AdminLayout } = await import('@/features/admin/AdminLayout')
+          return { Component: AdminLayout }
+        }}
+      >
+        <Route
+          index
+          lazy={async () => {
+            const { AdminHome } = await import('@/pages/Admin/AdminHome')
+            return { Component: AdminHome }
+          }}
+        />
+        <Route path="org/:organizationId">
+          <Route
+            index
+            lazy={async () => {
+              const { OrganizationDashboard } = await import('@/pages/Admin/OrganizationDashboard')
+              return { Component: OrganizationDashboard }
+            }}
+          />
+          <Route
+            path="events"
+            lazy={async () => {
+              const { EventsPage } = await import('@/pages/Admin/EventsPage')
+              return { Component: EventsPage }
+            }}
+          />
+          <Route
+            path="events/:eventId/certificate"
+            lazy={async () => {
+              const { EventCertificatePage } = await import('@/pages/Admin/EventCertificatePage')
+              return { Component: EventCertificatePage }
+            }}
+          />
+          <Route
+            path="events/:eventId/attendees"
+            lazy={async () => {
+              const { EventAttendeesPage } = await import('@/pages/Admin/EventAttendeesPage')
+              return { Component: EventAttendeesPage }
+            }}
+          />
+          <Route
+            path="members"
+            lazy={async () => {
+              const { MembersPage } = await import('@/pages/Admin/MembersPage')
+              return { Component: MembersPage }
+            }}
+          />
+          <Route
+            path="members/:memberId"
+            lazy={async () => {
+              const { MemberDetailPage } = await import('@/pages/Admin/MemberDetailPage')
+              return { Component: MemberDetailPage }
+            }}
+          />
+        </Route>
+      </Route>
       <Route
         path="/event/users/:eventId"
         lazy={async () => {

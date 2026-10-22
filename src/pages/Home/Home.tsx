@@ -1,7 +1,11 @@
 import { FC, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
-import { Box, Button, Container, Flex, Text, TextInput, Title } from '@mantine/core'
+import { Box, Button, Card, Container, Flex, PasswordInput, Text, Title } from '@mantine/core'
+import { IconCertificate } from '@tabler/icons-react'
+
+import { loginAdmin } from '@/features/admin/session'
+import { palette } from '@/styles/palette'
 
 const Home: FC = (): JSX.Element => {
   const navigate = useNavigate()
@@ -9,10 +13,8 @@ const Home: FC = (): JSX.Element => {
   const [error, setError] = useState('')
 
   const handleLogin = () => {
-    const correctPassword = 'admin123'
-
-    if (password === correctPassword) {
-      navigate('/dashboard/organizations')
+    if (loginAdmin(password)) {
+      navigate('/admin')
     } else {
       setError('Contraseña incorrecta. Inténtalo de nuevo.')
     }
@@ -24,32 +26,54 @@ const Home: FC = (): JSX.Element => {
       style={{
         height: '100vh',
         width: '100vw',
-        color: '#ddd',
-        backgroundColor: '#242424',
+        color: palette.text,
+        background: `linear-gradient(180deg, ${palette.primarySoft} 0%, ${palette.surface} 75%)`,
+        colorScheme: 'light',
       }}
     >
       <Flex direction="column" justify="center" align="center" h="100%" gap="lg">
-        <Title order={1}>Gestor de certificados</Title>
+        <Box
+          style={{
+            display: 'grid',
+            placeItems: 'center',
+            width: 60,
+            height: 60,
+            borderRadius: 16,
+            background: palette.surface,
+            color: palette.primary,
+            boxShadow: '0 6px 20px rgba(77, 147, 208, 0.15)',
+          }}
+        >
+          <IconCertificate size={32} />
+        </Box>
+        <Title order={1} c={palette.text} ta="center">
+          Gestor de certificados
+        </Title>
+        <Box w={56} h={3} style={{ borderRadius: 2, background: palette.accent }} />
 
-        <Box style={{ width: '300px' }}>
-          <TextInput
+        <Card
+          withBorder
+          radius="lg"
+          padding="xl"
+          w={340}
+          maw="100%"
+          style={{ borderColor: palette.border, boxShadow: '0 10px 30px rgba(31, 45, 61, 0.06)' }}
+        >
+          <PasswordInput
             label="Contraseña"
             placeholder="Ingresa la contraseña"
-            type="password"
             value={password}
             onChange={(e) => setPassword(e.currentTarget.value)}
-            error={error}
+            onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
+            error={error || undefined}
           />
-          {error && (
-            <Text color="red" size="sm" mt="xs">
-              {error}
-            </Text>
-          )}
-
-          <Button fullWidth mt="md" onClick={handleLogin}>
+          <Button fullWidth mt="md" color="brand" onClick={handleLogin}>
             Acceder
           </Button>
-        </Box>
+          <Text size="xs" c={palette.muted} ta="center" mt="sm">
+            Panel de administración
+          </Text>
+        </Card>
       </Flex>
     </Container>
   )
