@@ -26,6 +26,7 @@ import {
   IconFileSpreadsheet,
   IconPalette,
   IconSearch,
+  IconTableExport,
   IconUser,
   IconUserPlus,
 } from '@tabler/icons-react'
@@ -35,6 +36,7 @@ import { EventNameLink, formatPersonName } from '@/features/admin/format'
 import { EditAttendeeModal } from '@/features/certificates/EditAttendeeModal'
 import { BulkUploadModal } from '@/features/certificates/bulk/BulkUploadModal'
 import { downloadAttendeeCertificate } from '@/features/certificates/download'
+import { exportEventAttendees } from '@/features/certificates/exportAttendees'
 import { DEFAULT_ATTENDEE_FIELDS, MEMBER_FIELDS } from '@/features/certificates/fields'
 import {
   type CertificateField,
@@ -67,6 +69,7 @@ export function EventAttendeesPage() {
   const [addOpen, setAddOpen] = useState(false)
   const [editing, setEditing] = useState<string | null>(null)
   const [downloading, setDownloading] = useState<string | null>(null)
+  const [exporting, setExporting] = useState(false)
 
   const fields: CertificateField[] = overview?.certificate?.fields?.length
     ? overview.certificate.fields
@@ -104,6 +107,19 @@ export function EventAttendeesPage() {
 
   const eventName = overview?.event.name ?? ''
 
+  const exportExcel = async () => {
+    if (!eventId) return
+    setExporting(true)
+    try {
+      const count = await exportEventAttendees(eventId, eventName, fields, debouncedSearch)
+      notification.success({ message: `${count.toLocaleString('es-CO')} asistentes exportados` })
+    } catch {
+      notification.error({ message: 'No se pudo exportar la lista de asistentes' })
+    } finally {
+      setExporting(false)
+    }
+  }
+
   return (
     <AdminPage
       title={
@@ -127,6 +143,15 @@ export function EventAttendeesPage() {
             leftSection={<IconPalette size={16} />}
           >
             Diseño
+          </Button>
+          <Button
+            variant="default"
+            leftSection={<IconTableExport size={16} />}
+            onClick={exportExcel}
+            loading={exporting}
+            disabled={!data?.totalItems}
+          >
+            {debouncedSearch ? 'Exportar resultados' : 'Exportar asistentes'}
           </Button>
           <Button
             variant="light"
