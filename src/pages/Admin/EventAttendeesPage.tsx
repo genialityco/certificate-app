@@ -24,6 +24,8 @@ import {
   IconDownload,
   IconEdit,
   IconFileSpreadsheet,
+  IconMail,
+  IconMailForward,
   IconPalette,
   IconSearch,
   IconTableExport,
@@ -47,6 +49,7 @@ import {
   bulkUploadAttendees,
   fetchEventAttendees,
   fetchEventOverview,
+  sendAttendeeEmail,
 } from '@/services/api/certificateAdminService'
 import notification from '@/utils/notification'
 
@@ -70,6 +73,8 @@ export function EventAttendeesPage() {
   const [editing, setEditing] = useState<string | null>(null)
   const [downloading, setDownloading] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
+  const [emailing, setEmailing] = useState<string | null>(null)
+  const hasDesign = Boolean(overview?.certificate?.elements?.length)
 
   const fields: CertificateField[] = overview?.certificate?.fields?.length
     ? overview.certificate.fields
@@ -102,6 +107,21 @@ export function EventAttendeesPage() {
       notification.error({ message: message || 'No se pudo generar el certificado' })
     } finally {
       setDownloading(null)
+    }
+  }
+
+  const sendEmail = async (attendeeId: string) => {
+    setEmailing(attendeeId)
+    try {
+      const result = await sendAttendeeEmail(attendeeId)
+      notification.success({ message: result.message })
+      load()
+    } catch (err) {
+      const message = (err as { response?: { data?: { message?: string } } })?.response?.data
+        ?.message
+      notification.error({ message: message || 'No se pudo enviar el correo' })
+    } finally {
+      setEmailing(null)
     }
   }
 
@@ -143,6 +163,14 @@ export function EventAttendeesPage() {
             leftSection={<IconPalette size={16} />}
           >
             Diseño
+          </Button>
+          <Button
+            component={Link}
+            to={`/admin/org/${organizationId}/events/${eventId}/email`}
+            variant="default"
+            leftSection={<IconMail size={16} />}
+          >
+            Correo
           </Button>
           <Button
             variant="default"
@@ -208,6 +236,7 @@ export function EventAttendeesPage() {
                       <Table.Th key={f.key}>{f.label}</Table.Th>
                     ))}
                     <Table.Th ta="right">Descargas</Table.Th>
+                    <Table.Th>Correo</Table.Th>
                     <Table.Th />
                   </Table.Tr>
                 </Table.Thead>
@@ -233,6 +262,9 @@ export function EventAttendeesPage() {
                         </Badge>
                       </Table.Td>
                       <Table.Td>
+                        <EmailStatusBadge status={attendee.certificateEmail} />
+                      </Table.Td>
+                      <Table.Td>
                         <Group gap={4} justify="flex-end" wrap="nowrap">
                           <Tooltip label="Editar datos del certificado">
                             <ActionIcon
@@ -254,6 +286,25 @@ export function EventAttendeesPage() {
                               <IconDownload size={16} />
                             </ActionIcon>
                           </Tooltip>
+                          <Tooltip
+                            label={
+                              hasDesign
+                                ? attendee.certificateEmail?.status === 'sent'
+                                  ? 'Reenviar correo con el enlace'
+                                  : 'Enviar correo con el enlace'
+                                : 'El certificado necesita un diseño'
+                            }
+                          >
+                            <ActionIcon
+                              variant="subtle"
+                              color="brand"
+                              loading={emailing === attendee._id}
+                              disabled={!hasDesign || !attendee.attended}
+                              onClick={() => sendEmail(attendee._id)}
+                            >
+                              <IconMailForward size={16} />
+                            </ActionIcon>
+                          </Tooltip>
                           {attendee.memberId && (
                             <Tooltip label="Ver miembro">
                               <ActionIcon
@@ -272,7 +323,7 @@ export function EventAttendeesPage() {
                   ))}
                   {!data.items.length && (
                     <Table.Tr>
-                      <Table.Td colSpan={MEMBER_FIELDS.length + fields.length + 2}>
+                      <Table.Td colSpan={MEMBER_FIELDS.length + fields.length + 3}>
                         <Text c="dimmed" ta="center" py="lg">
                           {debouncedSearch
                             ? 'Sin resultados'
@@ -314,6 +365,35 @@ export function EventAttendeesPage() {
       )}
       <EditAttendeeModal attendeeId={editing} onClose={() => setEditing(null)} onSaved={load} />
     </AdminPage>
+  )
+}
+
+const formatDateTime = (value?: string) =>
+  value ? new Date(value).toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' }) : ''
+
+function EmailStatusBadge({ status }: { status?: EventAttendee['certificateEmail'] }) {
+  if (status?.status === 'sent') {
+    return (
+      <Tooltip label={`${status.to ?? ''} · ${formatDateTime(status.sentAt)}`}>
+        <Badge variant="light" color="green">
+          Enviado{status.count && status.count > 1 ? ` ×${status.count}` : ''}
+        </Badge>
+      </Tooltip>
+    )
+  }
+  if (status?.status === 'failed') {
+    return (
+      <Tooltip label={status.error || 'Error al enviar'} multiline w={260}>
+        <Badge variant="light" color="red">
+          Error
+        </Badge>
+      </Tooltip>
+    )
+  }
+  return (
+    <Badge variant="light" color="gray">
+      Pendiente
+    </Badge>
   )
 }
 

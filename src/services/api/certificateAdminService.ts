@@ -2,6 +2,8 @@ import {
   type AttendeeRow,
   type BulkResult,
   type CertificateDoc,
+  type CertificateEmailConfig,
+  type CertificateEmailSettings,
   type CertificateField,
   type EventAttendee,
   type EventSummary,
@@ -127,7 +129,48 @@ export const uploadImage = async (file: File) => {
   return (data.imageUrl ?? data.url ?? data.data?.url ?? data.data?.imageUrl) as string
 }
 
+// --- Correo del certificado -------------------------------------------------
+
+export const fetchEmailConfig = async (eventId: string) => {
+  const { data } = await api.get(`${BASE}/events/${eventId}/email`)
+  return data.data as CertificateEmailConfig
+}
+
+export const saveEmailSettings = async (eventId: string, settings: CertificateEmailSettings) => {
+  const { data } = await api.put(`${BASE}/events/${eventId}/email`, { settings })
+  return data.data as CertificateEmailConfig
+}
+
+export const previewEmail = async (eventId: string, settings: CertificateEmailSettings) => {
+  const { data } = await api.post(`${BASE}/events/${eventId}/email/preview`, { settings })
+  return data.data as { subject: string; html: string; text: string }
+}
+
+export const sendTestEmail = async (
+  eventId: string,
+  to: string,
+  settings: CertificateEmailSettings,
+) => {
+  const { data } = await api.post(`${BASE}/events/${eventId}/email/test`, { to, settings })
+  return data.data as { to: string }
+}
+
+export const sendEventEmails = async (eventId: string, scope: 'pending' | 'all') => {
+  const { data } = await api.post(`${BASE}/events/${eventId}/email/send`, { scope })
+  return data.data as { queued: number }
+}
+
+export const sendAttendeeEmail = async (attendeeId: string) => {
+  const { data } = await api.post(`${BASE}/attendees/${attendeeId}/email`)
+  return data as { message: string; data: { to: string } }
+}
+
 // --- Público ----------------------------------------------------------------
+
+export const completeIdNumber = async (attendeeId: string, idNumber: string) => {
+  const { data } = await api.put(`${BASE}/public/attendees/${attendeeId}/id-number`, { idNumber })
+  return data.data as RenderData
+}
 
 export const publicSearch = async (organizationId: string, q: string) => {
   const { data } = await api.get(`${BASE}/public/organizations/${organizationId}/search`, {

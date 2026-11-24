@@ -82,6 +82,16 @@ export interface EventAttendee {
   certificateDownloads?: number
   properties?: Record<string, string>
   member?: MemberDoc
+  certificateEmail?: CertificateEmailStatus
+}
+
+export interface CertificateEmailStatus {
+  status?: 'sent' | 'failed'
+  sentAt?: string
+  failedAt?: string
+  to?: string
+  error?: string
+  count?: number
 }
 
 export interface MemberCertificate {
@@ -130,6 +140,9 @@ export interface BulkResult {
 }
 
 export interface RenderData {
+  // El miembro no tiene documento (o tiene uno de relleno): la landing del
+  // correo lo pide antes de descargar
+  missingIdNumber?: boolean
   attendee: {
     _id: string
     eventId: string
@@ -160,3 +173,51 @@ export type PublicSearchResult =
       member: { fullName: string; email: string; idNumber: string }
       certificates: MemberCertificate[]
     }
+
+// --- Correo del certificado -------------------------------------------------
+
+export type EmailAlign = 'left' | 'center' | 'right'
+
+export type EmailBlock =
+  | { id: string; type: 'heading'; text: string; align?: EmailAlign; color?: string; size?: number }
+  | { id: string; type: 'text'; text: string; align?: EmailAlign; color?: string; size?: number }
+  | { id: string; type: 'image'; url: string; width?: number; align?: EmailAlign; alt?: string }
+  | {
+      id: string
+      type: 'button'
+      text: string
+      align?: EmailAlign
+      color?: string
+      textColor?: string
+    }
+  | { id: string; type: 'divider'; color?: string }
+  | { id: string; type: 'spacer'; height?: number }
+  | { id: string; type: 'html'; html: string }
+
+export type EmailBlockType = EmailBlock['type']
+
+export interface CertificateEmailSettings {
+  enabled: boolean
+  autoSend: boolean
+  subject: string
+  preheader: string
+  fromName: string
+  replyTo: string
+  backgroundColor: string
+  contentBackgroundColor: string
+  fontFamily: string
+  blocks: EmailBlock[]
+  linkBaseUrl: string
+}
+
+export interface CertificateEmailConfig {
+  event: { _id: string; name: string }
+  certificateId: string | null
+  hasDesign: boolean
+  emailConfigured: boolean
+  sending: boolean
+  saved: boolean
+  settings: CertificateEmailSettings
+  variables: CertificateField[]
+  stats: { total: number; sent: number; failed: number; pending: number }
+}

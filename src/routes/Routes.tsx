@@ -108,6 +108,13 @@ const RouterStack = createBrowserRouter(
             }}
           />
           <Route
+            path="events/:eventId/email"
+            lazy={async () => {
+              const { EventEmailPage } = await import('@/pages/Admin/EventEmailPage')
+              return { Component: EventEmailPage }
+            }}
+          />
+          <Route
             path="events/:eventId/attendees"
             lazy={async () => {
               const { EventAttendeesPage } = await import('@/pages/Admin/EventAttendeesPage')
@@ -157,6 +164,14 @@ const RouterStack = createBrowserRouter(
           return {
             Component: ConsultCertificate,
           }
+        }}
+      />
+      {/* Enlace que llega en el correo del certificado */}
+      <Route
+        path="/descarga/:attendeeId"
+        lazy={async () => {
+          const { DownloadLanding } = await import('@/pages/Certificate/DownloadLanding')
+          return { Component: DownloadLanding }
         }}
       />
       <Route
