@@ -59,6 +59,16 @@ import notification from '@/utils/notification'
 
 export function EventEmailPage() {
   const { organizationId, eventId } = useParams()
+  return <EventEmailEditor key={eventId} organizationId={organizationId} eventId={eventId} />
+}
+
+function EventEmailEditor({
+  organizationId,
+  eventId,
+}: {
+  organizationId?: string
+  eventId?: string
+}) {
   const [config, setConfig] = useState<CertificateEmailConfig | null>(null)
   const [settings, setSettings] = useState<CertificateEmailSettings | null>(null)
   const [loadError, setLoadError] = useState(false)
@@ -101,9 +111,15 @@ export function EventEmailPage() {
   const [debouncedSettings] = useDebouncedValue(settings, 400)
   useEffect(() => {
     if (!eventId || !debouncedSettings) return
+    let active = true
     previewEmail(eventId, debouncedSettings)
-      .then(setPreview)
+      .then((result) => {
+        if (active) setPreview(result)
+      })
       .catch(() => null)
+    return () => {
+      active = false
+    }
   }, [eventId, debouncedSettings])
 
   const dirty = useMemo(
@@ -399,9 +415,19 @@ export function EventEmailPage() {
             </Card>
 
             <Card withBorder radius="md" padding="lg">
-              <Text fw={700} mb="sm">
-                Estructura y contenido
-              </Text>
+              <Group justify="space-between" mb="sm">
+                <Text fw={700}>Estructura y contenido</Text>
+                {config.defaultBody && (
+                  <Button
+                    variant="light"
+                    color="brand"
+                    size="xs"
+                    onClick={() => setSettings({ ...settings, ...config.defaultBody })}
+                  >
+                    Usar plantilla para PDF adjunto
+                  </Button>
+                )}
+              </Group>
               <EmailBlocksEditor
                 blocks={settings.blocks}
                 onChange={(blocks) => set('blocks', blocks)}

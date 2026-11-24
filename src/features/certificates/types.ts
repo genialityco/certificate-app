@@ -180,6 +180,17 @@ export type PublicSearchResult =
 export type EmailAlign = 'left' | 'center' | 'right'
 
 export type EmailBlock =
+  | {
+      id: string
+      type: 'certificate'
+      label: string
+      title: string
+      greeting: string
+      message: string
+      closing: string
+      signature: string
+      headerColor: string
+    }
   | { id: string; type: 'heading'; text: string; align?: EmailAlign; color?: string; size?: number }
   | { id: string; type: 'text'; text: string; align?: EmailAlign; color?: string; size?: number }
   | { id: string; type: 'image'; url: string; width?: number; align?: EmailAlign; alt?: string }
@@ -193,7 +204,7 @@ export type EmailBlock =
     }
   | { id: string; type: 'divider'; color?: string }
   | { id: string; type: 'spacer'; height?: number }
-  | { id: string; type: 'html'; html: string }
+  | { id: string; type: 'html'; html: string; plainText?: string }
 
 export type EmailBlockType = EmailBlock['type']
 
@@ -219,6 +230,10 @@ export interface CertificateEmailConfig {
   batchDelayMs: number
   saved: boolean
   settings: CertificateEmailSettings
+  defaultBody?: Pick<
+    CertificateEmailSettings,
+    'preheader' | 'backgroundColor' | 'contentBackgroundColor' | 'blocks'
+  >
   variables: CertificateField[]
   stats: { total: number; sent: number; failed: number; pending: number }
 }

@@ -19,6 +19,7 @@ import {
 import {
   IconArrowDown,
   IconArrowUp,
+  IconCertificate,
   IconClick,
   IconCode,
   IconH1,
@@ -40,6 +41,7 @@ import { uploadImage } from '@/services/api/certificateAdminService'
 import notification from '@/utils/notification'
 
 const BLOCK_META: Record<EmailBlockType, { label: string; icon: JSX.Element }> = {
+  certificate: { label: 'Mensaje del certificado', icon: <IconCertificate size={16} /> },
   heading: { label: 'Título', icon: <IconH1 size={16} /> },
   text: { label: 'Texto', icon: <IconTextSize size={16} /> },
   button: { label: 'Botón de descarga', icon: <IconClick size={16} /> },
@@ -54,6 +56,18 @@ const newId = () => Math.random().toString(36).slice(2, 10)
 const createBlock = (type: EmailBlockType): EmailBlock => {
   const id = newId()
   switch (type) {
+    case 'certificate':
+      return {
+        id,
+        type,
+        label: '',
+        title: '{{eventName}}',
+        greeting: '{{greeting}}',
+        message: '',
+        closing: '',
+        signature: '',
+        headerColor: '#222f59',
+      }
     case 'heading':
       return { id, type, text: 'Título', align: 'center', color: '#1f2d3d', size: 26 }
     case 'text':
@@ -146,12 +160,6 @@ export function EmailBlocksEditor({ blocks, onChange }: Props) {
         </Card>
       ))}
 
-      {!blocks.some((b) => b.type === 'button') && (
-        <Text size="xs" c="orange.8">
-          El correo no tiene botón de descarga. Agrega uno o usa {'{{link}}'} en un texto.
-        </Text>
-      )}
-
       <Menu position="bottom-start" withinPortal>
         <Menu.Target>
           <Button variant="light" color="brand" leftSection={<IconPlus size={16} />}>
@@ -187,6 +195,55 @@ function BlockFields({
   )
 
   switch (block.type) {
+    case 'certificate':
+      return (
+        <Stack gap="xs">
+          <Group gap="xs" align="flex-end">
+            <TextInput
+              label="Etiqueta del encabezado"
+              style={{ flex: 1 }}
+              value={block.label}
+              onChange={(e) => onChange({ label: e.currentTarget.value })}
+            />
+            <ColorInput
+              label="Color del encabezado"
+              w={150}
+              value={block.headerColor}
+              onChange={(headerColor) => onChange({ headerColor })}
+            />
+          </Group>
+          <TextInput
+            label="Título"
+            value={block.title}
+            onChange={(e) => onChange({ title: e.currentTarget.value })}
+          />
+          <TextInput
+            label="Saludo"
+            value={block.greeting}
+            onChange={(e) => onChange({ greeting: e.currentTarget.value })}
+          />
+          <Textarea
+            label="Mensaje"
+            description="Usa **texto** para aplicar negrita."
+            value={block.message}
+            onChange={(e) => onChange({ message: e.currentTarget.value })}
+            autosize
+            minRows={4}
+          />
+          <Group gap="xs" grow>
+            <TextInput
+              label="Despedida"
+              value={block.closing}
+              onChange={(e) => onChange({ closing: e.currentTarget.value })}
+            />
+            <TextInput
+              label="Firma"
+              value={block.signature}
+              onChange={(e) => onChange({ signature: e.currentTarget.value })}
+            />
+          </Group>
+        </Stack>
+      )
     case 'heading':
     case 'text':
       return (
@@ -276,14 +333,25 @@ function BlockFields({
       )
     case 'html':
       return (
-        <Textarea
-          value={block.html}
-          onChange={(e) => onChange({ html: e.currentTarget.value })}
-          autosize
-          minRows={4}
-          styles={{ input: { fontFamily: 'monospace', fontSize: 12 } }}
-          description="Las variables se reemplazan con los datos de cada persona"
-        />
+        <Stack gap="xs">
+          <Textarea
+            label="HTML"
+            value={block.html}
+            onChange={(e) => onChange({ html: e.currentTarget.value })}
+            autosize
+            minRows={4}
+            maxRows={10}
+            styles={{ input: { fontFamily: 'monospace', fontSize: 12 } }}
+          />
+          <Textarea
+            label="Versión en texto plano"
+            value={block.plainText ?? ''}
+            onChange={(e) => onChange({ plainText: e.currentTarget.value })}
+            autosize
+            minRows={2}
+            maxRows={8}
+          />
+        </Stack>
       )
   }
 }
