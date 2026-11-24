@@ -22,6 +22,7 @@ import {
 } from '@tabler/icons-react'
 
 import { formatPersonName } from '@/features/admin/format'
+import { emailCertificatesAutomatically } from '@/features/certificates/email/sendCertificateEmail'
 import { bulkUploadAttendees } from '@/services/api/certificateAdminService'
 
 import { fieldLabel } from '../fields'
@@ -108,6 +109,10 @@ export function BulkUploadModal({ opened, onClose, eventId, eventName, fields, o
     }
     setResults(all)
     onDone()
+    void emailCertificatesAutomatically(
+      eventId,
+      all.flatMap(({ status, attendeeId }) => (status === 'created' && attendeeId ? [attendeeId] : [])),
+    )
   }
 
   const summary = results && {

@@ -38,6 +38,12 @@ import { EventNameLink, formatPersonName } from '@/features/admin/format'
 import { EditAttendeeModal } from '@/features/certificates/EditAttendeeModal'
 import { BulkUploadModal } from '@/features/certificates/bulk/BulkUploadModal'
 import { downloadAttendeeCertificate } from '@/features/certificates/download'
+import {
+  certificateEmailError,
+  emailAttendeeCertificate,
+  emailCertificatesAutomatically,
+  useCertificateEmailBatch,
+} from '@/features/certificates/email/sendCertificateEmail'
 import { exportEventAttendees } from '@/features/certificates/exportAttendees'
 import { DEFAULT_ATTENDEE_FIELDS, MEMBER_FIELDS } from '@/features/certificates/fields'
 import {
@@ -49,7 +55,6 @@ import {
   bulkUploadAttendees,
   fetchEventAttendees,
   fetchEventOverview,
-  sendAttendeeEmail,
 } from '@/services/api/certificateAdminService'
 import notification from '@/utils/notification'
 
@@ -74,6 +79,7 @@ export function EventAttendeesPage() {
   const [downloading, setDownloading] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
   const [emailing, setEmailing] = useState<string | null>(null)
+  const sendingBatch = useCertificateEmailBatch(eventId)
   const hasDesign = Boolean(overview?.certificate?.elements?.length)
 
   const fields: CertificateField[] = overview?.certificate?.fields?.length
@@ -94,7 +100,9 @@ export function EventAttendeesPage() {
       .catch(() => setData({ items: [], totalItems: 0, totalPages: 0, currentPage: 1 }))
   }, [eventId, debouncedSearch, page])
 
-  useEffect(load, [load])
+  useEffect(() => {
+    load()
+  }, [load, sendingBatch])
   useEffect(() => setPage(1), [debouncedSearch])
 
   const download = async (attendeeId: string) => {
@@ -113,13 +121,15 @@ export function EventAttendeesPage() {
   const sendEmail = async (attendeeId: string) => {
     setEmailing(attendeeId)
     try {
-      const result = await sendAttendeeEmail(attendeeId)
-      notification.success({ message: result.message })
+      const result = await emailAttendeeCertificate(attendeeId)
+      if (result.status === 'sent') {
+        notification.success({ message: `Certificado enviado a ${result.to}` })
+      } else {
+        notification.error({ message: result.status === 'failed' ? result.error : result.reason })
+      }
       load()
     } catch (err) {
-      const message = (err as { response?: { data?: { message?: string } } })?.response?.data
-        ?.message
-      notification.error({ message: message || 'No se pudo enviar el correo' })
+      notification.error({ message: certificateEmailError(err, 'No se pudo enviar el correo') })
     } finally {
       setEmailing(null)
     }
@@ -289,9 +299,10 @@ export function EventAttendeesPage() {
                           <Tooltip
                             label={
                               hasDesign
-                                ? attendee.certificateEmail?.status === 'sent'
-                                  ? 'Reenviar correo con el enlace'
-                                  : 'Enviar correo con el enlace'
+                                ? attendee.certificateEmail?.status === 'sent' &&
+                                  attendee.certificateEmail.attachmentSentAt
+                                  ? 'Reenviar PDF del certificado'
+                                  : 'Enviar PDF del certificado'
                                 : 'El certificado necesita un diseño'
                             }
                           >
@@ -299,7 +310,7 @@ export function EventAttendeesPage() {
                               variant="subtle"
                               color="brand"
                               loading={emailing === attendee._id}
-                              disabled={!hasDesign || !attendee.attended}
+                              disabled={!hasDesign || !attendee.attended || sendingBatch || emailing !== null}
                               onClick={() => sendEmail(attendee._id)}
                             >
                               <IconMailForward size={16} />
@@ -372,9 +383,9 @@ const formatDateTime = (value?: string) =>
   value ? new Date(value).toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' }) : ''
 
 function EmailStatusBadge({ status }: { status?: EventAttendee['certificateEmail'] }) {
-  if (status?.status === 'sent') {
+  if (status?.status === 'sent' && status.attachmentSentAt) {
     return (
-      <Tooltip label={`${status.to ?? ''} · ${formatDateTime(status.sentAt)}`}>
+      <Tooltip label={`${status.to ?? ''} · ${formatDateTime(status.attachmentSentAt)}`}>
         <Badge variant="light" color="green">
           Enviado{status.count && status.count > 1 ? ` ×${status.count}` : ''}
         </Badge>
@@ -438,6 +449,9 @@ function AddAttendeeModal({
       result.warnings.forEach((warning) =>
         notifications.show({ color: 'yellow', title: 'Atención', message: warning }),
       )
+      if (result.status === 'created' && result.attendeeId) {
+        void emailCertificatesAutomatically(eventId, [result.attendeeId])
+      }
       setValues({})
       onDone()
       onClose()

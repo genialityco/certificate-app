@@ -21,6 +21,7 @@ import { fetchRenderData, updateAttendeeData } from '@/services/api/certificateA
 import notification from '@/utils/notification'
 
 import { downloadAttendeeCertificate } from './download'
+import { emailCertificatesAutomatically } from './email/sendCertificateEmail'
 import { DEFAULT_ATTENDEE_FIELDS, MEMBER_FIELDS } from './fields'
 import { renderCertificateToCanvas } from './renderCertificate'
 import { type RenderData } from './types'
@@ -110,6 +111,9 @@ export function EditAttendeeModal({ attendeeId, onClose, onSaved }: Props) {
     setSaving(true)
     try {
       const updated = await updateAttendeeData(attendeeId, { member, attributes, attended })
+      if (updated.attendee.attended && !data?.attendee.attended) {
+        void emailCertificatesAutomatically(updated.attendee.eventId, [attendeeId])
+      }
       setData(updated)
       notification.success({ message: 'Datos actualizados; el certificado ya refleja los cambios' })
       onSaved?.()

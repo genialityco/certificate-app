@@ -1,8 +1,11 @@
+import { adminAuthorization } from '@/features/admin/session'
 import {
   type AttendeeRow,
   type BulkResult,
   type CertificateDoc,
   type CertificateEmailConfig,
+  type CertificateEmailMode,
+  type CertificateEmailResult,
   type CertificateEmailSettings,
   type CertificateField,
   type EventAttendee,
@@ -137,7 +140,9 @@ export const fetchEmailConfig = async (eventId: string) => {
 }
 
 export const saveEmailSettings = async (eventId: string, settings: CertificateEmailSettings) => {
-  const { data } = await api.put(`${BASE}/events/${eventId}/email`, { settings })
+  const { data } = await api.put(`${BASE}/events/${eventId}/email`, { settings }, {
+    headers: adminAuthorization(),
+  })
   return data.data as CertificateEmailConfig
 }
 
@@ -150,19 +155,44 @@ export const sendTestEmail = async (
   eventId: string,
   to: string,
   settings: CertificateEmailSettings,
+  pdf: Blob,
 ) => {
-  const { data } = await api.post(`${BASE}/events/${eventId}/email/test`, { to, settings })
+  const form = new FormData()
+  form.append('to', to)
+  form.append('settings', JSON.stringify(settings))
+  form.append('certificate', pdf, 'Certificado.pdf')
+  const { data } = await api.post(`${BASE}/events/${eventId}/email/test`, form, {
+    headers: { ...adminAuthorization(), 'Content-Type': 'multipart/form-data' },
+  })
   return data.data as { to: string }
 }
 
-export const sendEventEmails = async (eventId: string, scope: 'pending' | 'all') => {
-  const { data } = await api.post(`${BASE}/events/${eventId}/email/send`, { scope })
-  return data.data as { queued: number }
+export const fetchEventEmailRecipients = async (
+  eventId: string,
+  scope: 'pending' | 'all',
+  after?: string,
+) => {
+  const { data } = await api.get(`${BASE}/events/${eventId}/email/recipients`, {
+    headers: adminAuthorization(),
+    params: { scope, after },
+  })
+  return data.data as { ids: string[]; next?: string }
 }
 
-export const sendAttendeeEmail = async (attendeeId: string) => {
-  const { data } = await api.post(`${BASE}/attendees/${attendeeId}/email`)
-  return data as { message: string; data: { to: string } }
+export const sendAttendeeEmail = async (
+  attendeeId: string,
+  memberId: string,
+  pdf: Blob,
+  mode: CertificateEmailMode,
+) => {
+  const form = new FormData()
+  form.append('memberId', memberId)
+  form.append('mode', mode)
+  form.append('certificate', pdf, 'Certificado.pdf')
+  const { data } = await api.post(`${BASE}/attendees/${attendeeId}/email`, form, {
+    headers: { ...adminAuthorization(), 'Content-Type': 'multipart/form-data' },
+  })
+  return data.data as CertificateEmailResult
 }
 
 // --- Público ----------------------------------------------------------------

@@ -1,7 +1,9 @@
-// Sesión del administrador. Usa la misma contraseña que ya tenía la app.
+import api from '@/services/api/api'
+
 const SESSION_KEY = 'certificate-admin-session'
 const ORG_KEY = 'certificate-admin-organization'
-export const ADMIN_PASSWORD = 'admin123'
+
+type AdminSession = { token: string; expiresAt: number }
 
 const safe = <T>(fn: () => T, fallback: T): T => {
   try {
@@ -11,17 +13,41 @@ const safe = <T>(fn: () => T, fallback: T): T => {
   }
 }
 
-export const loginAdmin = (password: string) => {
-  if (password !== ADMIN_PASSWORD) return false
-  safe(() => sessionStorage.setItem(SESSION_KEY, '1'), undefined)
-  return true
+const readSession = () => {
+  const session = safe<AdminSession | null>(
+    () => JSON.parse(sessionStorage.getItem(SESSION_KEY) ?? 'null'),
+    null,
+  )
+  return session?.token && session.expiresAt > Date.now() ? session : null
 }
 
-export const isAdminLogged = () => safe(() => sessionStorage.getItem(SESSION_KEY) === '1', false)
+const loginAdmin = async (password: string) => {
+  const { data } = await api.post<{ data: AdminSession }>('/certificate-admin/session', {
+    password,
+  })
+  sessionStorage.setItem(SESSION_KEY, JSON.stringify(data.data))
+}
 
-export const logoutAdmin = () => safe(() => sessionStorage.removeItem(SESSION_KEY), undefined)
+const isAdminLogged = () => Boolean(readSession())
 
-export const rememberOrganization = (organizationId: string) =>
+const adminAuthorization = () => {
+  const session = readSession()
+  if (!session) throw new Error('La sesión del panel expiró. Vuelve a ingresar.')
+  return { Authorization: `Bearer ${session.token}` }
+}
+
+const logoutAdmin = () => safe(() => sessionStorage.removeItem(SESSION_KEY), undefined)
+
+const rememberOrganization = (organizationId: string) =>
   safe(() => localStorage.setItem(ORG_KEY, organizationId), undefined)
 
-export const lastOrganization = () => safe(() => localStorage.getItem(ORG_KEY), null)
+const lastOrganization = () => safe(() => localStorage.getItem(ORG_KEY), null)
+
+export {
+  adminAuthorization,
+  isAdminLogged,
+  lastOrganization,
+  loginAdmin,
+  logoutAdmin,
+  rememberOrganization,
+}

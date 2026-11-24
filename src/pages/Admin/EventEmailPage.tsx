@@ -36,21 +36,26 @@ import { AdminPage } from '@/features/admin/AdminLayout'
 import { EventNameLink } from '@/features/admin/format'
 import { EmailBlocksEditor } from '@/features/certificates/email/EmailBlocksEditor'
 import {
+  certificateEmailError,
+  emailCertificatesAutomatically,
+  emailEventCertificates,
+  renderCertificatePdf,
+  useCertificateEmailBatch,
+} from '@/features/certificates/email/sendCertificateEmail'
+import { certificateSampleValues } from '@/features/certificates/fields'
+import {
   type CertificateEmailConfig,
   type CertificateEmailSettings,
 } from '@/features/certificates/types'
 import {
   fetchEmailConfig,
+  fetchEventOverview,
   previewEmail,
   saveEmailSettings,
-  sendEventEmails,
   sendTestEmail,
 } from '@/services/api/certificateAdminService'
 import { palette } from '@/styles/palette'
 import notification from '@/utils/notification'
-
-const errorMessage = (err: unknown, fallback: string) =>
-  (err as { response?: { data?: { message?: string } } })?.response?.data?.message || fallback
 
 export function EventEmailPage() {
   const { organizationId, eventId } = useParams()
@@ -61,6 +66,7 @@ export function EventEmailPage() {
   const [preview, setPreview] = useState<{ subject: string; html: string } | null>(null)
   const [testOpen, setTestOpen] = useState(false)
   const [sendScope, setSendScope] = useState<'pending' | 'all' | null>(null)
+  const sendingBatch = useCertificateEmailBatch(eventId)
 
   const applyConfig = useCallback((result: CertificateEmailConfig) => {
     setConfig(result)
@@ -79,16 +85,18 @@ export function EventEmailPage() {
       .catch(() => setLoadError(true))
   }, [eventId, applyConfig])
 
-  // Mientras hay un envío masivo en curso se refrescan las cifras
   useEffect(() => {
-    if (!eventId || !config?.sending) return
-    const timer = setInterval(() => {
-      fetchEmailConfig(eventId)
-        .then((result) => setConfig((prev) => (prev ? { ...prev, ...pick(result) } : result)))
-        .catch(() => null)
-    }, 5000)
-    return () => clearInterval(timer)
-  }, [eventId, config?.sending])
+    if (!eventId || sendingBatch) return
+    let active = true
+    fetchEmailConfig(eventId)
+      .then(({ stats }) => {
+        if (active) setConfig((prev) => (prev?.event._id === eventId ? { ...prev, stats } : prev))
+      })
+      .catch(() => null)
+    return () => {
+      active = false
+    }
+  }, [eventId, sendingBatch])
 
   const [debouncedSettings] = useDebouncedValue(settings, 400)
   useEffect(() => {
@@ -117,10 +125,15 @@ export function EventEmailPage() {
     if (!eventId || !settings) return
     setSaving(true)
     try {
-      applyConfig(await saveEmailSettings(eventId, settings))
+      const wasAutomatic = config?.settings.enabled && config.settings.autoSend
+      const saved = await saveEmailSettings(eventId, settings)
+      applyConfig(saved)
       notification.success({ message: 'Correo guardado' })
+      if (!wasAutomatic && saved.settings.enabled && saved.settings.autoSend) {
+        void emailCertificatesAutomatically(eventId)
+      }
     } catch (err) {
-      notification.error({ message: errorMessage(err, 'No se pudo guardar el correo') })
+      notification.error({ message: certificateEmailError(err, 'No se pudo guardar el correo') })
     } finally {
       setSaving(false)
     }
@@ -144,7 +157,7 @@ export function EventEmailPage() {
   const designUrl = `/admin/org/${organizationId}/events/${eventId}/certificate`
   const attendeesUrl = `/admin/org/${organizationId}/events/${eventId}/attendees`
   const canSend = config.hasDesign && config.emailConfigured
-  const bulkBlocked = !canSend || !config.settings.enabled || dirty || config.sending
+  const bulkBlocked = !canSend || !config.settings.enabled || dirty || sendingBatch
   const bulkReason = !config.hasDesign
     ? 'El certificado necesita un diseño'
     : !config.emailConfigured
@@ -153,7 +166,7 @@ export function EventEmailPage() {
         ? 'Guarda los cambios antes de enviar'
         : !config.settings.enabled
           ? 'Habilita el envío y guarda'
-          : config.sending
+          : sendingBatch
             ? 'Hay un envío en curso'
             : ''
 
@@ -237,7 +250,7 @@ export function EventEmailPage() {
                     <Switch
                       color="brand"
                       label="Habilitar envío de correos"
-                      description="Sin esto no se envía ningún correo de este evento"
+                      description="Activa los envíos automáticos y masivos de este evento"
                       checked={settings.enabled}
                       disabled={!config.hasDesign}
                       onChange={(e) => set('enabled', e.currentTarget.checked)}
@@ -247,7 +260,7 @@ export function EventEmailPage() {
                 <Switch
                   color="brand"
                   label="Enviar automáticamente al crear el certificado"
-                  description="Cada persona que se agregue (individual o carga masiva) recibe el correo"
+                  description="Envía el PDF al inscribir asistentes y procesa los pendientes al activar esta opción"
                   checked={settings.autoSend}
                   disabled={!settings.enabled}
                   onChange={(e) => set('autoSend', e.currentTarget.checked)}
@@ -267,7 +280,7 @@ export function EventEmailPage() {
                       {config.stats.failed} con error
                     </Badge>
                   )}
-                  {config.sending && (
+                  {sendingBatch && (
                     <Badge color="orange" leftSection={<Loader size={10} color="white" />}>
                       Enviando…
                     </Badge>
@@ -444,10 +457,8 @@ export function EventEmailPage() {
           eventId={eventId}
           scope={sendScope ?? 'pending'}
           count={sendScope === 'all' ? config.stats.total : config.stats.pending}
-          onDone={(queued) => {
-            setSendScope(null)
-            setConfig((prev) => (prev ? { ...prev, sending: queued > 0 } : prev))
-          }}
+          delayMs={config.batchDelayMs}
+          onStart={() => setSendScope(null)}
           onCancel={() => setSendScope(null)}
         />
       </Modal>
@@ -455,38 +466,28 @@ export function EventEmailPage() {
   )
 }
 
-// Solo lo que cambia durante un envío (no pisar la edición en curso)
-const pick = ({ stats, sending }: CertificateEmailConfig) => ({ stats, sending })
-
 function ConfirmSend({
   eventId,
   scope,
   count,
-  onDone,
+  delayMs,
+  onStart,
   onCancel,
 }: {
   eventId: string
   scope: 'pending' | 'all'
   count: number
-  onDone: (queued: number) => void
+  delayMs: number
+  onStart: () => void
   onCancel: () => void
 }) {
-  const [sending, setSending] = useState(false)
-
   const send = async () => {
-    setSending(true)
     try {
-      const { queued } = await sendEventEmails(eventId, scope)
-      notification.success({
-        message: queued
-          ? `Enviando ${queued.toLocaleString('es-CO')} correos en segundo plano`
-          : 'No hay correos por enviar',
-      })
-      onDone(queued)
+      const batch = emailEventCertificates(eventId, scope, delayMs)
+      onStart()
+      await batch
     } catch (err) {
-      notification.error({ message: errorMessage(err, 'No se pudo iniciar el envío') })
-    } finally {
-      setSending(false)
+      notification.error({ message: certificateEmailError(err, 'No se pudo completar el envío') })
     }
   }
 
@@ -494,15 +495,15 @@ function ConfirmSend({
     <Stack gap="md">
       <Text size="sm">
         {scope === 'all'
-          ? `Se reenviará el correo a las ${count.toLocaleString('es-CO')} personas con certificado, incluso a quienes ya lo recibieron.`
-          : `Se enviará el correo a ${count.toLocaleString('es-CO')} personas que aún no lo han recibido.`}{' '}
-        Las personas sin correo válido se omiten.
+          ? `Se reenviará el PDF a las ${count.toLocaleString('es-CO')} personas con certificado.`
+          : `Se enviará el PDF a ${count.toLocaleString('es-CO')} personas que aún no lo han recibido.`}{' '}
+        Las personas sin correo válido se omiten. Mantén la pestaña abierta durante el envío.
       </Text>
       <Group justify="flex-end">
         <Button variant="default" onClick={onCancel}>
           Cancelar
         </Button>
-        <Button color="brand" onClick={send} loading={sending}>
+        <Button color="brand" onClick={send}>
           Enviar
         </Button>
       </Group>
@@ -527,11 +528,15 @@ function TestEmailModal({
   const send = async () => {
     setSending(true)
     try {
-      const result = await sendTestEmail(eventId, to.trim(), settings)
+      const { certificate, event } = await fetchEventOverview(eventId)
+      if (!certificate?.elements.length) throw new Error('El certificado necesita un diseño')
+      const values = certificateSampleValues(event.name, certificate.fields ?? [])
+      const pdf = await renderCertificatePdf(certificate, { ...values, fullName: 'María Fernanda Gómez' })
+      const result = await sendTestEmail(eventId, to.trim(), settings, pdf)
       notification.success({ message: `Correo de prueba enviado a ${result.to}` })
       onClose()
     } catch (err) {
-      notification.error({ message: errorMessage(err, 'No se pudo enviar la prueba') })
+      notification.error({ message: certificateEmailError(err, 'No se pudo enviar la prueba') })
     } finally {
       setSending(false)
     }
@@ -546,7 +551,7 @@ function TestEmailModal({
     >
       <Stack gap="sm">
         <Text size="xs" c="dimmed">
-          Se envía la versión actual (aunque no esté guardada) con datos de ejemplo.
+          Se envía la versión actual del correo con un PDF de ejemplo adjunto.
         </Text>
         <TextInput
           label="Enviar a"

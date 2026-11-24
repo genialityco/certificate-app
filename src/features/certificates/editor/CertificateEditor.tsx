@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import {
   ActionIcon,
@@ -15,12 +15,13 @@ import {
 import { IconArrowBackUp, IconArrowForwardUp, IconDeviceFloppy, IconEye } from '@tabler/icons-react'
 
 import { formatEventName } from '@/features/admin/format'
+import { emailCertificatesAutomatically } from '@/features/certificates/email/sendCertificateEmail'
 import { saveEventCertificate, uploadImage } from '@/services/api/certificateAdminService'
 import fileToBase64 from '@/utils/fileToBase64'
 import generateUniqueId from '@/utils/generateUniqueId'
 import notification from '@/utils/notification'
 
-import { DEFAULT_ATTENDEE_FIELDS, allFields } from '../fields'
+import { DEFAULT_ATTENDEE_FIELDS, allFields, certificateSampleValues } from '../fields'
 import {
   DEFAULT_SIZE,
   ELEMENT_VERSION,
@@ -46,21 +47,6 @@ const markBackground = (elements: CertificateElement[], size: { width: number; h
       : el,
   )
 
-const sampleValuesFor = (eventName: string, fields: CertificateField[]) => ({
-  fullName: 'María Fernanda Gómez Restrepo',
-  idNumber: '1.234.567.890',
-  email: 'maria.gomez@correo.com',
-  phone: '300 123 4567',
-  eventName,
-  typeAttendee: 'Asistente',
-  certificationHours: '20',
-  ...Object.fromEntries(
-    fields
-      .filter((f) => !['typeAttendee', 'certificationHours'].includes(f.key))
-      .map((f) => [f.key, f.label]),
-  ),
-})
-
 // Los elementos del editor antiguo pueden traer campos que no se deben guardar
 const cleanForSave = (elements: CertificateElement[]) =>
   elements.map((el) => {
@@ -84,6 +70,7 @@ export function CertificateEditor({ eventId, eventName, certificate, onSaved }: 
     certificate?.fields?.length ? certificate.fields : DEFAULT_ATTENDEE_FIELDS,
   )
   const [certificateId, setCertificateId] = useState<string | null>(certificate?._id ?? null)
+  const hadDesign = useRef(Boolean(certificate?.elements?.length))
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [preview, setPreview] = useState<string | null>(null)
@@ -96,7 +83,7 @@ export function CertificateEditor({ eventId, eventName, certificate, onSaved }: 
     () => Object.fromEntries(fieldsForSelect.map((f) => [f.key, f.label])),
     [fieldsForSelect],
   )
-  const sampleValues = useMemo(() => sampleValuesFor(eventName, fields), [eventName, fields])
+  const sampleValues = useMemo(() => certificateSampleValues(eventName, fields), [eventName, fields])
   const usageByKey = useMemo(
     () =>
       elements
@@ -174,6 +161,9 @@ export function CertificateEditor({ eventId, eventName, certificate, onSaved }: 
       state.setDirty(false)
       notification.success({ message: 'Certificado guardado' })
       onSaved?.(saved)
+      const hasDesign = Boolean(saved.elements?.length)
+      if (hasDesign && !hadDesign.current) void emailCertificatesAutomatically(eventId)
+      hadDesign.current = hasDesign
     } catch (error) {
       notification.error({ message: 'No se pudo guardar el certificado' })
     } finally {

@@ -23,6 +23,21 @@ export const allFields = (attendeeFields: CertificateField[]) => [
   ...attendeeFields,
 ]
 
+export const certificateSampleValues = (eventName: string, fields: CertificateField[]) => ({
+  fullName: 'María Fernanda Gómez Restrepo',
+  idNumber: '1.234.567.890',
+  email: 'maria.gomez@correo.com',
+  phone: '300 123 4567',
+  eventName,
+  typeAttendee: 'Asistente',
+  certificationHours: '20',
+  ...Object.fromEntries(
+    fields
+      .filter((f) => !['typeAttendee', 'certificationHours'].includes(f.key))
+      .map((f) => [f.key, f.label]),
+  ),
+})
+
 const stripAccents = (value: string) => value.normalize('NFD').replace(/[̀-ͯ]/g, '')
 
 // "Horas certificadas" -> "horasCertificadas"

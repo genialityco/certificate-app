@@ -11,12 +11,20 @@ const Home: FC = (): JSX.Element => {
   const navigate = useNavigate()
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
 
-  const handleLogin = () => {
-    if (loginAdmin(password)) {
+  const handleLogin = async () => {
+    if (!password || loading) return
+    setLoading(true)
+    setError('')
+    try {
+      await loginAdmin(password)
       navigate('/admin')
-    } else {
-      setError('Contraseña incorrecta. Inténtalo de nuevo.')
+    } catch (err) {
+      const message = (err as { response?: { data?: { message?: string } } }).response?.data?.message
+      setError(message || 'No se pudo iniciar sesión')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -67,7 +75,7 @@ const Home: FC = (): JSX.Element => {
             onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
             error={error || undefined}
           />
-          <Button fullWidth mt="md" color="brand" onClick={handleLogin}>
+          <Button fullWidth mt="md" color="brand" onClick={handleLogin} loading={loading}>
             Acceder
           </Button>
           <Text size="xs" c={palette.muted} ta="center" mt="sm">

@@ -68,6 +68,7 @@ export async function renderCertificateToCanvas(
   elements: CertificateElement[],
   size: { width: number; height: number } | undefined,
   values: Record<string, string>,
+  { requireImages = false } = {},
 ) {
   const { width, height } = size?.width && size?.height ? size : DEFAULT_SIZE
   canvas.width = width
@@ -77,7 +78,12 @@ export async function renderCertificateToCanvas(
 
   const images = await Promise.all(
     elements.map((el) =>
-      el.type === 'image' && el.imageUrl ? loadImage(el.imageUrl).catch(() => null) : null,
+      el.type === 'image' && el.imageUrl
+        ? loadImage(el.imageUrl).catch((error) => {
+            if (requireImages) throw error
+            return null
+          })
+        : null,
     ),
   )
   await ensureFontsLoaded(elements)

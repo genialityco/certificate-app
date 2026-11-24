@@ -88,6 +88,7 @@ export interface EventAttendee {
 export interface CertificateEmailStatus {
   status?: 'sent' | 'failed'
   sentAt?: string
+  attachmentSentAt?: string
   failedAt?: string
   to?: string
   error?: string
@@ -215,9 +216,16 @@ export interface CertificateEmailConfig {
   certificateId: string | null
   hasDesign: boolean
   emailConfigured: boolean
-  sending: boolean
+  batchDelayMs: number
   saved: boolean
   settings: CertificateEmailSettings
   variables: CertificateField[]
   stats: { total: number; sent: number; failed: number; pending: number }
 }
+
+export type CertificateEmailMode = 'manual' | 'auto' | 'pending' | 'all'
+
+export type CertificateEmailResult =
+  | { status: 'sent'; to: string }
+  | { status: 'skipped'; reason: string }
+  | { status: 'failed'; error: string }
